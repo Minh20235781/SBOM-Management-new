@@ -1,0 +1,109 @@
+/* Base reset + global element styles. All design tokens come from
+ styles/globals.css; this file only contains rules that apply to
+ plain HTML elements. Component-specific styles live in
+ components/<Name>/<Name>.module.css. */
+
+@import "./styles/globals.css";
+
+*,
+*::before,
+*::after {
+ box-sizing: border-box;
+ margin: 0;
+ padding: 0;
+}
+
+html,
+body,
+#root {
+ height: 100%;
+}
+
+html {
+ font-family: var(--font-sans);
+ font-size: var(--text-base);
+ line-height: var(--leading-normal);
+ color: var(--text-primary);
+ background: var(--bg-app);
+ -webkit-font-smoothing: antialiased;
+ -moz-osx-font-smoothing: grayscale;
+ text-rendering: optimizeLegibility;
+}
+
+body {
+ background: var(--bg-app);
+ color: var(--text-primary);
+}
+
+h1, h2, h3, h4, h5, h6 {
+ line-height: var(--leading-tight);
+ color: var(--text-primary);
+ font-weight: var(--weight-semibold);
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+
+p {
+ color: var(--text-secondary);
+}
+
+a {
+ color: var(--color-primary);
+ text-decoration: none;
+}
+
+a:hover {
+ color: var(--color-primary-hover);
+}
+
+code, pre, kbd {
+ font-family: var(--font-mono);
+ font-size: 0.92em;
+}
+
+button {
+ font-family: inherit;
+ font-size: inherit;
+ cursor: pointer;
+ border: none;
+ background: none;
+ color: inherit;
+}
+
+input, textarea, select {
+ font-family: inherit;
+ font-size: inherit;
+ color: inherit;
+}
+
+img, svg {
+ display: block;
+ max-width: 100%;
+}
+
+::selection {
+ background: var(--color-primary-soft);
+ color: var(--text-primary);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+ width: 8px;
+ height: 8px;
+}
+
+::-webkit-scrollbar-track {
+ background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+ background: var(--border-default);
+ border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+ background: var(--border-strong);
+}

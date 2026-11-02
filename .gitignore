@@ -1,0 +1,45 @@
+.venv*/
+gnn-training/.venv*/
+gnn-training/.venv312/
+
+# --- Java / Maven ---
+demo/target/
+*.class
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+gnn-training/.venv312/
+
+# --- Node / React ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+
+# --- OS / IDE Rác ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# --- File log hoặc file tạm cá nhân ---
+hs_err_pid*.log
+tempCodeRunnerFile.py
+
+# --- ml-zenodo-a: chỉ giữ model + script train, bỏ dataset thô ---
+ml-zenodo-a/data/
+ml-zenodo-a/notebooks/
+ml-zenodo-a/*.csv
+ml-zenodo-a/*.log

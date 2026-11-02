@@ -1,0 +1,35 @@
+[
+  {
+    "nodeId": 1,
+    "packageName": "log4j-core",
+    "predictedRiskLabel": "HIGH",
+    "confidenceScore": 0.6546077728271484,
+    "classProbabilities": {
+      "LOW": 0.0012000718852505088,
+      "MEDIUM": 0.34419217705726624,
+      "HIGH": 0.6546077728271484
+    }
+  },
+  {
+    "nodeId": 2,
+    "packageName": "spring-core",
+    "predictedRiskLabel": "HIGH",
+    "confidenceScore": 0.5959466099739075,
+    "classProbabilities": {
+      "LOW": 0.0022504637017846107,
+      "MEDIUM": 0.4018028676509857,
+      "HIGH": 0.5959466099739075
+    }
+  },
+  {
+    "nodeId": 3,
+    "packageName": "commons-io",
+    "predictedRiskLabel": "MEDIUM",
+    "confidenceScore": 0.5025029182434082,
+    "classProbabilities": {
+      "LOW": 0.008119356818497181,
+      "MEDIUM": 0.5025029182434082,
+      "HIGH": 0.4893777072429657
+    }
+  }
+]

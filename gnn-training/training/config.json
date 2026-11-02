@@ -1,0 +1,12 @@
+{
+  "model": "gat",
+  "hidden_dim": 32,
+  "heads": 4,
+  "dropout": 0.2,
+  "epochs": 50,
+  "lr": 0.001,
+  "train_ratio": 0.8,
+  "seed": 42,
+  "data_path": "../demo/exports/gnn/gnn-export-20260520-163424481.json",
+  "results_dir": "exports/results"
+}

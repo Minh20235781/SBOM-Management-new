@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SBOM Runtime Inspector</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #181820;
+      color: #f4f4f5;
+      margin: 0;
+      padding: 16px;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #2e303f;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-weight: 800;
+      font-size: 14px;
+      color: #ffffff;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .badge-live {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge-off {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: #21222c;
+      border: 1px solid #383a48;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .card-title {
+      font-size: 11px;
+      color: #9ca3af;
+      font-weight: 700;
+    }
+    .card-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 4px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    button {
+      padding: 6px 14px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+    }
+    .btn-secondary {
+      background: #374151;
+      color: #e5e7eb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    th {
+      text-align: left;
+      padding: 6px 8px;
+      background: #21222c;
+      color: #bd93f9;
+      border-bottom: 1px solid #383a48;
+    }
+    td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #2e303f;
+      color: #e4e4e7;
+    }
+    .table-container {
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid #2e303f;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">SBOM Runtime DevTools Panel</div>
+    <div id="statusBadge" class="badge badge-live">Đang ghi nhận thời gian thực</div>
+  </div>
+
+  <div class="stats">
+    <div class="card">
+      <div class="card-title">Yêu Cầu Mạng Bắt Được</div>
+      <div id="reqCount" class="card-value">0</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tập Tin JavaScript</div>
+      <div id="jsCount" class="card-value">0</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Đã Đồng Bộ Sang Backend</div>
+      <div id="syncCount" class="card-value">0</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="toggleBtn" class="btn-primary">Tạm dừng ghi</button>
+    <button id="syncNowBtn" class="btn-secondary">Đồng bộ sang máy chủ ngay</button>
+    <button id="clearBtn" class="btn-secondary">Xóa danh sách</button>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Tên Tài Nguyên</th>
+          <th>Trạng Thái</th>
+          <th>Loại</th>
+          <th>Dung Lượng</th>
+          <th>Thời Gian</th>
+        </tr>
+      </thead>
+      <tbody id="reqTableBody">
+        <tr>
+          <td colspan="5" style="text-align:center; padding: 20px; color: #9ca3af;">
+            Chưa có yêu cầu mạng nào được ghi nhận. Tải lại trang web để bắt đầu.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script src="panel.js"></script>
+</body>
+</html>
+

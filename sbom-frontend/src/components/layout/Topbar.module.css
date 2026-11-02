@@ -1,0 +1,139 @@
+.topbar {
+ height: var(--topbar-height);
+ flex: 0 0 var(--topbar-height);
+ background: var(--bg-surface);
+ border-bottom: 1px solid var(--border-subtle);
+ display: flex;
+ align-items: center;
+ padding: 0 var(--space-6);
+ gap: var(--space-6);
+ position: sticky;
+ top: 0;
+ z-index: var(--z-sticky);
+}
+
+.breadcrumbs {
+ display: flex;
+ align-items: center;
+ gap: var(--space-2);
+ font-size: var(--text-sm);
+ color: var(--text-secondary);
+ flex: 0 1 auto;
+ min-width: 0;
+ overflow: hidden;
+}
+
+.crumb {
+ white-space: nowrap;
+ color: var(--text-secondary);
+ text-decoration: none;
+}
+
+.crumb:hover {
+ color: var(--text-primary);
+}
+
+.crumbCurrent {
+ color: var(--text-primary);
+ font-weight: var(--weight-semibold);
+ white-space: nowrap;
+}
+
+.crumbSep {
+ color: var(--text-muted);
+ font-size: var(--text-xs);
+}
+
+.search {
+ position: relative;
+ flex: 1 1 auto;
+ max-width: 420px;
+}
+
+.searchInput {
+ width: 100%;
+ height: 36px;
+ padding: 0 var(--space-3) 0 36px;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--radius-md);
+ background: var(--bg-app);
+ font-size: var(--text-sm);
+ color: var(--text-primary);
+ transition: border-color var(--duration-fast) var(--ease),
+ box-shadow var(--duration-fast) var(--ease);
+}
+
+.searchInput::placeholder {
+ color: var(--text-muted);
+}
+
+.searchInput:focus {
+ outline: none;
+ border-color: var(--color-primary);
+ box-shadow: 0 0 0 3px var(--color-primary-soft);
+ background: var(--bg-surface);
+}
+
+.searchIcon {
+ position: absolute;
+ left: var(--space-3);
+ top: 50%;
+ transform: translateY(-50%);
+ width: 16px;
+ height: 16px;
+ color: var(--text-muted);
+ stroke: currentColor;
+ fill: none;
+ stroke-width: 2;
+ pointer-events: none;
+}
+
+.right {
+ margin-left: auto;
+ display: flex;
+ align-items: center;
+ gap: var(--space-3);
+}
+
+.iconBtn {
+ width: 36px;
+ height: 36px;
+ border-radius: var(--radius-md);
+ background: transparent;
+ color: var(--text-secondary);
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ transition: background var(--duration-fast) var(--ease),
+ color var(--duration-fast) var(--ease);
+}
+
+.iconBtn:hover {
+ background: var(--bg-hover);
+ color: var(--text-primary);
+}
+
+.iconBtn svg {
+ width: 18px;
+ height: 18px;
+ stroke: currentColor;
+ fill: none;
+ stroke-width: 1.75;
+ stroke-linecap: round;
+ stroke-linejoin: round;
+}
+
+.avatar {
+ width: 32px;
+ height: 32px;
+ border-radius: var(--radius-full);
+ background: var(--color-primary);
+ color: var(--text-inverse);
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ font-weight: var(--weight-semibold);
+ font-size: var(--text-sm);
+ cursor: pointer;
+ user-select: none;
+}

@@ -1,0 +1,318 @@
+% =====================================================================
+% DANH SÁCH TÀI LIỆU THAM KHẢO - ĐỒ ÁN TỐT NGHIỆP
+% Hệ thống phân tích rủi ro bảo mật chuỗi cung ứng phần mềm
+% =====================================================================
+
+% ==================== SBOM & SUPPLY CHAIN ====================
+
+@misc{ntia_sbom_2021,
+  author       = {{NTIA Multistakeholder Process on Software Component Transparency}},
+  title        = {Framing Software Component Transparency: Establishing a Common Software Bill of Materials (SBOM)},
+  year         = {2021},
+  howpublished = {U.S. Department of Commerce - National Telecommunications and Information Administration},
+  note         = {Đặc tả khung SBOM tiêu chuẩn},
+  url          = {https://www.ntia.gov/sbom}
+}
+
+@misc{cyclonedx_spec_2024,
+  author       = {{OWPSA CycloneDX Working Group}},
+  title        = {CycloneDX Specification 1.6},
+  year         = {2024},
+  howpublished = {OWASP Foundation},
+  note         = {Định dạng chuẩn SBOM được hệ thống sử dụng},
+  url          = {https://cyclonedx.org/specification/overview/}
+}
+
+@misc{spdx_spec_2024,
+  author       = {{Linux Foundation}},
+  title        = {SPDX Specification 2.3},
+  year         = {2024},
+  howpublished = {Linux Foundation},
+  note         = {Chuẩn SBOM thay thế cho CycloneDX},
+  url          = {https://spdx.github.io/spdx-spec/v2.3/}
+}
+
+@misc{cve_program_2024,
+  author       = {{MITRE Corporation}},
+  title        = {Common Vulnerabilities and Exposures (CVE) Program},
+  year         = {2024},
+  howpublished = {MITRE},
+  note         = {Cơ sở dữ liệu CVE được hệ thống tham chiếu},
+  url          = {https://cve.mitre.org/}
+}
+
+@article{cvss_v3_2015,
+  author       = {{FIRST.org, Inc.}},
+  title        = {Common Vulnerability Scoring System v3.1: Specification Document},
+  year         = {2015},
+  journal      = {Forum of Incident Response and Security Teams (FIRST)},
+  note         = {Tiêu chuẩn chấm điểm CVSS},
+  url          = {https://www.first.org/cvss/specification-document}
+}
+
+@misc{first_epss_2023,
+  author       = {{FIRST.org, Inc.}},
+  title        = {Exploit Prediction Scoring System (EPSS) - API Documentation},
+  year         = {2023},
+  howpublished = {FIRST.org},
+  note         = {API EPSS dùng để lấy xác suất khai thác},
+  url          = {https://www.first.org/epss/}
+}
+
+@misc{cisa_kev_2024,
+  author       = {{Cybersecurity and Infrastructure Security Agency}},
+  title        = {Known Exploited Vulnerabilities (KEV) Catalog},
+  year         = {2024},
+  howpublished = {CISA - U.S. Department of Homeland Security},
+  note         = {Danh mục lỗ hổng đã bị khai thác thực tế},
+  url          = {https://www.cisa.gov/known-exploited-vulnerabilities-catalog}
+}
+
+% ==================== SUPPLY CHAIN ATTACKS ====================
+
+@misc{log4shell_2021,
+  author       = {{Apache Logging Services}},
+  title        = {Apache Log4j Security Vulnerabilities (CVE-2021-44228, CVE-2021-45046)},
+  year         = {2021},
+  howpublished = {Apache Software Foundation},
+  note         = {Sự cố Log4Shell - minh chứng rủi ro lan truyền},
+  url          = {https://logging.apache.org/log4j/2.x/security.html}
+}
+
+@misc{solarwinds_2021,
+  author       = {{U.S. Cybersecurity and Infrastructure Security Agency}},
+  title        = {Supply Chain Compromise: SolarWinds Orion Software (AA20-352A)},
+  year         = {2021},
+  howpublished = {CISA Alert AA20-352A},
+  note         = {Tấn công chuỗi cung ứng SolarWinds},
+  url          = {https://www.cisa.gov/news-events/cybersecurity-advisories/aa20-352a}
+}
+
+% ==================== GRAPH THEORY & DEEP LEARNING ON GRAPHS ====================
+
+@article{kipf_gcn_2017,
+  author       = {Kipf, Thomas N. and Welling, Max},
+  title        = {Semi-Supervised Classification with Graph Convolutional Networks},
+  journal      = {International Conference on Learning Representations (ICLR)},
+  year         = {2017},
+  note         = {Nền tảng GCN sử dụng trong mô hình thử nghiệm},
+  url          = {https://arxiv.org/abs/1609.02907}
+}
+
+@article{velickovic_gat_2018,
+  author       = {Veli{\v{c}}kovi{\'c}, Petar and Cucurull, Guillem and Casanova, Arantxa and Romero, Adriana and Li{\`o}, Pietro and Bengio, Yoshua},
+  title        = {Graph Attention Networks},
+  journal      = {International Conference on Learning Representations (ICLR)},
+  year         = {2018},
+  note         = {Kiến trúc GAT dùng trong mô hình thử nghiệm},
+  url          = {https://arxiv.org/abs/1710.10903}
+}
+
+@article{hamilton_2017,
+  author       = {Hamilton, William L. and Ying, Rex and Leskovec, Jure},
+  title        = {Inductive Representation Learning on Large Graphs},
+  journal      = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year         = {2017},
+  note         = {Nền tảng GraphSAGE tham khảo cho học biểu diễn đồ thị},
+  url          = {https://arxiv.org/abs/1706.02216}
+}
+
+% ==================== WEAK SUPERVISION & SNORKEL ====================
+
+@article{ratner_snorkel_2017,
+  author       = {Ratner, Alexander and Bach, Stephen H. and Ehrenberg, Henry and Fries, Jason and Wu, Sen and R{\'e}, Christopher},
+  title        = {Snorkel: Rapid Training Data Creation with Weak Supervision},
+  journal      = {Proceedings of the VLDB Endowment (VLDB)},
+  volume       = {11},
+  number       = {3},
+  pages        = {269--282},
+  year         = {2017},
+  publisher    = {ACM},
+  note         = {Framework Snorkel - Weak Supervision cho tạo training data nhanh từ các heuristic rules (sử dụng trong hệ thống cho labeling strategy)}
+}
+
+@inproceedings{ratner_data_programming_2016,
+  author       = {Ratner, Alexander and De Sa, Christopher and Wu, Sen and Selsam, Daniel and R{\'e}, Christopher},
+  title        = {Data Programming: Creating Large Training Sets, Quickly},
+  booktitle    = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages        = {3567--3575},
+  year         = {2016},
+  publisher    = {Curran Associates, Inc.},
+  note         = {Nền tảng Data Programming - Snorkel sử dụng kỹ thuật weak supervision}
+}
+
+% ==================== MACHINE LEARNING & RANDOM FOREST ====================
+
+@article{breiman_randomforest_2001,
+  author       = {Breiman, Leo},
+  title        = {Random Forests},
+  journal      = {Machine Learning},
+  volume       = {45},
+  number       = {1},
+  pages        = {5--32},
+  year         = {2001},
+  publisher    = {Springer},
+  note         = {Bài báo gốc về thuật toán Random Forest}
+}
+
+@book{hastie_elements_2009,
+  author       = {Hastie, Trevor and Tibshirani, Robert and Friedman, Jerome},
+  title        = {The Elements of Statistical Learning: Data Mining, Inference, and Prediction},
+  edition      = {2},
+  year         = {2009},
+  publisher    = {Springer},
+  note         = {Sách tham khảo về lý thuyết học máy tổng quát}
+}
+
+@book{geron_hands_on_2022,
+  author       = {G{\'e}ron, Aur{\'e}lien},
+  title        = {Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow},
+  edition      = {3},
+  year         = {2022},
+  publisher    = {O'Reilly Media},
+  note         = {Sách tham khảo triển khai Scikit-learn}
+}
+
+@misc{scikit_learn_api,
+  author       = {{scikit-learn developers}},
+  title        = {scikit-learn: Machine Learning in Python},
+  year         = {2024},
+  howpublished = {Pedregosa et al., JMLR 12, pp. 2825-2830, 2011},
+  note         = {Tài liệu API chính thức của scikit-learn},
+  url          = {https://scikit-learn.org/stable/documentation.html}
+}
+
+% ==================== ROBUST STATISTICS ====================
+
+@book{huber_robust_2009,
+  author       = {Huber, Peter J. and Ronchetti, Elvezio M.},
+  title        = {Robust Statistics},
+  edition      = {2},
+  year         = {2009},
+  publisher    = {Wiley},
+  note         = {Sách gốc về Thống kê bền vững, nền tảng cho Robust Z-Score}
+}
+
+@article{iglesias2003robust,
+  author       = {Iglewicz, Boris and Hoaglin, David C.},
+  title        = {How to Detect and Handle Outliers (The ASQC Basic References in Quality Control: Statistical Techniques)},
+  year         = {1993},
+  publisher    = {American Society for Quality Control},
+  note         = {Modified Z-Score sử dụng MAD}
+}
+
+% ==================== EXPLAINABLE AI & LLM ====================
+
+@article{adadi2018peeking,
+  author       = {Adadi, Amina and Berrada, Mohammed},
+  title        = {Peeking Inside the Black-Box: A Survey on Explainable Artificial Intelligence (XAI)},
+  journal      = {IEEE Access},
+  volume       = {6},
+  pages        = {52138--52160},
+  year         = {2018},
+  publisher    = {IEEE},
+  note         = {Khảo sát về Explainable AI}
+}
+
+@misc{gemini_api_2024,
+  author       = {{Google DeepMind}},
+  title        = {Gemini API Reference},
+  year         = {2024},
+  howpublished = {Google AI for Developers},
+  note         = {Tài liệu API của Gemini dùng cho giải thích XAI},
+  url          = {https://ai.google.dev/docs}
+}
+
+% ==================== D3.JS & VISUALIZATION ====================
+
+@book{murray_2017,
+  author       = {Murray, Scott},
+  title        = {Interactive Data Visualization for the Web: An Introduction to Designing with D3},
+  edition      = {2},
+  year         = {2017},
+  publisher    = {O'Reilly Media},
+  note         = {Sách tham khảo D3.js}
+}
+
+@misc{d3js_official,
+  author       = {{Observable, Inc.}},
+  title        = {D3.js Official Documentation},
+  year         = {2024},
+  howpublished = {D3.js},
+  note         = {Tài liệu chính thức D3.js dùng trong trực quan hóa đồ thị},
+  url          = {https://d3js.org/}
+}
+
+% ==================== SOFTWARE ENGINEERING & DEVSECOPS ====================
+
+@misc{nist_devsecops_2022,
+  author       = {{National Institute of Standards and Technology}},
+  title        = {NIST SP 800-218 Rev. 1: Secure Software Development Framework (SSDF) Version 1.1},
+  year         = {2022},
+  howpublished = {NIST Special Publication},
+  note         = {Khung phát triển phần mềm an toàn của NIST},
+  url          = {https://csrc.nist.gov/Projects/ssdf}
+}
+
+@book{owasp_samm_2020,
+  author       = {{OWASP Foundation}},
+  title        = {OWASP Software Assurance Maturity Model (SAMM) v2.0},
+  year         = {2020},
+  publisher    = {OWASP Foundation},
+  note         = {Mô hình trưởng thành đảm bảo phần mềm OWASP}
+}
+
+% ==================== TRIVY & SCA TOOLS ====================
+
+@misc{trivy_doc_2024,
+  author       = {{Aqua Security}},
+  title        = {Trivy Documentation},
+  year         = {2024},
+  howpublished = {Aqua Security},
+  note         = {Tài liệu công cụ Trivy dùng để quét SBOM},
+  url          = {https://trivy.dev/latest/docs/}
+}
+
+% ==================== SPRING BOOT & JAVA ====================
+
+@book{wallace_spring_2023,
+  author       = {Wallace, Craig},
+  title        = {Spring Boot in Practice},
+  year         = {2023},
+  publisher    = {Manning Publications},
+  note         = {Tham khảo Spring Boot cho Backend}
+}
+
+% ==================== ML DATASETS (ĐATN retraining) ====================
+
+@misc{zenodo_sbom_100k_2025,
+  author       = {Chaora, Anesu and Camp, L. Jean},
+  title        = {SBOM Dataset from 100,000+ Public GitHub Repositories},
+  year         = {2025},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.15334733},
+  url          = {https://zenodo.org/records/15334733},
+  note         = {Dataset A — 101,477 SPDX JSON SBOMs dùng để retrain mô hình RandomForest trong ĐATN (CC-BY 4.0)}
+}
+
+@misc{osv_dev_2024,
+  author       = {{Google Open Source Security Team}},
+  title        = {OSV.dev: Open Source Vulnerabilities},
+  year         = {2024},
+  howpublished = {Google},
+  url          = {https://osv.dev/},
+  note         = {OSV.dev — nguồn dữ liệu CVE bên ngoài dùng để gán nhãn risk cho Dataset A}
+}
+
+@inproceedings{breiman_randomforest_2001,
+  author       = {Breiman, Leo},
+  title        = {Random Forests},
+  booktitle    = {Machine Learning},
+  year         = {2001},
+  volume       = {45},
+  number       = {1},
+  pages        = {5--32},
+  publisher    = {Springer},
+  doi          = {10.1023/A:1010933404324},
+  note         = {Bài báo gốc về thuật toán Random Forest}
+}

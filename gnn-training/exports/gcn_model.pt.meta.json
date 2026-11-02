@@ -1,0 +1,31 @@
+{
+  "feature_names": [
+    "moduleRank",
+    "vulnerabilityCount",
+    "epssSignal",
+    "cvssSignal",
+    "inDegree",
+    "outDegree",
+    "transitiveDependencyCount",
+    "transitiveDependentCount",
+    "dependencyDepth",
+    "shortestPathToVulnerable",
+    "vulnerableReachability",
+    "reachableHighRiskNodes",
+    "vulnerableNeighborRatio",
+    "pagerank",
+    "betweennessCentrality",
+    "eigenvectorCentrality",
+    "closenessCentrality",
+    "directVsTransitiveRatio",
+    "exploitChainExposure",
+    "neighborRiskMax",
+    "upstreamRiskScore",
+    "downstreamRiskScore",
+    "propagationDepth",
+    "propagationDecayScore"
+  ],
+  "input_dim": 24,
+  "model": "gcn",
+  "hidden_dim": 32
+}

@@ -1,0 +1,72 @@
+{
+  "model": "gat",
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 0.3333333333333333,
+    "recall": 0.3333333333333333,
+    "f1": 0.3333333333333333,
+    "roc_auc": 0.0,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ]
+  },
+  "best_metrics": {
+    "accuracy": 1.0,
+    "precision": 0.3333333333333333,
+    "recall": 0.3333333333333333,
+    "f1": 0.3333333333333333,
+    "roc_auc": 0.0,
+    "confusion_matrix": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ]
+  },
+  "graph_stats": {
+    "node_count": 3.0,
+    "edge_count": 2.0,
+    "average_degree": 0.6666666666666666,
+    "density": 0.3333333333333333
+  },
+  "feature_importance": {
+    "moduleRank": 0.0,
+    "maxCvss": 0.0,
+    "avgCvss": 0.0,
+    "maxEpss": 0.0,
+    "avgEpss": 0.0,
+    "kevCount": 0.0,
+    "vulnerabilityCount": 0.3333333333333333,
+    "severityWeight": 0.0
+  },
+  "labels": [
+    "low",
+    "medium",
+    "high"
+  ]
+}

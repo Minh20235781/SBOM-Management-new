@@ -1,0 +1,38 @@
+.grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+ gap: var(--space-4);
+ margin-bottom: var(--space-5);
+}
+
+.card {
+ background: var(--bg-surface);
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--radius-lg);
+ padding: var(--space-5);
+ box-shadow: var(--shadow-xs);
+ margin-bottom: var(--space-4);
+}
+
+.cardTitle {
+ font-size: var(--text-md);
+ font-weight: var(--weight-semibold);
+ margin: 0 0 var(--space-3) 0;
+}
+
+.metricRow {
+ display: flex;
+ flex-wrap: wrap;
+ gap: var(--space-5);
+ font-size: var(--text-sm);
+ color: var(--text-secondary);
+}
+
+.metricRow b { color: var(--text-primary); }
+.metricRow span { display: inline-flex; align-items: center; gap: 4px; }
+
+.subtle {
+ color: var(--text-muted);
+ font-size: var(--text-xs);
+ margin-bottom: var(--space-3);
+}

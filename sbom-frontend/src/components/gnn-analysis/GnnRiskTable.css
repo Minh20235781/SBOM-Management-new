@@ -1,0 +1,103 @@
+.gnn-analysis-table {
+  color: #1f2937;
+}
+
+.gnn-analysis-table-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.gnn-analysis-input,
+.gnn-analysis-select {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.gnn-analysis-input::placeholder {
+  color: #9ca3af;
+}
+
+.gnn-analysis-table-wrapper {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: auto;
+  max-height: 320px;
+  background: #ffffff;
+}
+
+.gnn-analysis-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.gnn-analysis-table th,
+.gnn-analysis-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.gnn-analysis-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.gnn-analysis-row {
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gnn-analysis-row:hover {
+  background: #eff6ff;
+}
+
+.gnn-analysis-row-high {
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.gnn-analysis-risk-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.gnn-analysis-score {
+  display: inline-flex;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.gnn-analysis-attention-high {
+  color: #2563eb;
+  text-shadow: 0 0 6px rgba(59, 130, 246, 0.35);
+}
+
+.gnn-analysis-propagation-high {
+  color: #d97706;
+  text-shadow: 0 0 6px rgba(249, 115, 22, 0.35);
+}
+
+.gnn-analysis-empty-row {
+  text-align: center;
+  color: #6b7280;
+  padding: 14px 0;
+}
+
+@media (max-width: 720px) {
+  .gnn-analysis-table-controls {
+    flex-direction: column;
+  }
+}

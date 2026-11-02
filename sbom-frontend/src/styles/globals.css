@@ -1,0 +1,114 @@
+/* ==========================================================================
+ Design tokens — single source of truth for colors, spacing, typography,
+ shadows, and radii. Every component should pull from these vars so a
+ theme tweak in one place propagates everywhere.
+ ========================================================================== */
+
+:root {
+ /* Brand & semantic colors */
+ --color-primary: #2563eb;
+ --color-primary-hover: #1d4ed8;
+ --color-primary-soft: #dbeafe;
+ --color-primary-text: #ffffff;
+
+ --color-success: #16a34a;
+ --color-success-soft: #dcfce7;
+
+ --color-warning: #f59e0b;
+ --color-warning-soft: #fef3c7;
+
+ --color-danger: #dc2626;
+ --color-danger-soft: #fee2e2;
+
+ --color-info: #0ea5e9;
+ --color-info-soft: #e0f2fe;
+
+ --color-neutral: #64748b;
+ --color-neutral-soft: #f1f5f9;
+
+ /* Text scale */
+ --text-primary: #1e293b;
+ --text-secondary: #64748b;
+ --text-muted: #94a3b8;
+ --text-inverse: #ffffff;
+
+ /* Surfaces */
+ --bg-app: #f9fafb;
+ --bg-surface: #ffffff;
+ --bg-subtle: #f8fafc;
+ --bg-hover: #f1f5f9;
+ --bg-active: #e2e8f0;
+
+ /* Borders */
+ --border-subtle: #e5e7eb;
+ --border-default: #d1d5db;
+ --border-strong: #94a3b8;
+
+ /* Spacing scale (4-px grid) */
+ --space-1: 4px;
+ --space-2: 8px;
+ --space-3: 12px;
+ --space-4: 16px;
+ --space-5: 20px;
+ --space-6: 24px;
+ --space-8: 32px;
+ --space-10: 40px;
+ --space-12: 48px;
+ --space-16: 64px;
+
+ /* Layout dimensions */
+ --sidebar-width: 240px;
+ --sidebar-collapsed-width: 72px;
+ --topbar-height: 60px;
+ --content-max-width: 1440px;
+
+ /* Radii */
+ --radius-sm: 4px;
+ --radius-md: 6px;
+ --radius-lg: 8px;
+ --radius-xl: 12px;
+ --radius-full: 9999px;
+
+ /* Shadows */
+ --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+ --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+ --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+ --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+ --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+
+ /* Typography */
+ --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+ --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+
+ --text-xs: 12px;
+ --text-sm: 13px;
+ --text-base: 14px;
+ --text-md: 15px;
+ --text-lg: 16px;
+ --text-xl: 18px;
+ --text-2xl: 22px;
+ --text-3xl: 28px;
+ --text-4xl: 34px;
+
+ --leading-tight: 1.25;
+ --leading-normal: 1.5;
+ --leading-relaxed: 1.65;
+
+ --weight-regular: 400;
+ --weight-medium: 500;
+ --weight-semibold: 600;
+ --weight-bold: 700;
+
+ /* Motion */
+ --ease: cubic-bezier(0.4, 0, 0.2, 1);
+ --duration-fast: 120ms;
+ --duration-base: 180ms;
+ --duration-slow: 280ms;
+
+ /* Z-index scale */
+ --z-dropdown: 100;
+ --z-sticky: 200;
+ --z-modal-backdrop: 900;
+ --z-modal: 1000;
+ --z-toast: 1100;
+}

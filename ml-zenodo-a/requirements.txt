@@ -1,0 +1,37 @@
+# ml-zenodo-a/requirements.txt
+#
+# Python dependencies for retraining on Zenodo Dataset A.
+# Tested against Python 3.12 (matches gnn-training/.venv312).
+#
+# Install (from project root, with gnn-training/.venv312 already present):
+#   source gnn-training/.venv312/bin/activate   # Linux/macOS
+#   gnn-training\.venv312\Scripts\activate       # Windows
+#   pip install -r ml-zenodo-a/requirements.txt
+#
+# Or create a fresh venv:
+#   python -m venv .venv
+#   .venv\Scripts\activate
+#   pip install -r ml-zenodo-a/requirements.txt
+
+# Core data + HTTP
+requests>=2.31.0
+tqdm>=4.66.0
+
+# SPDX / PURL parsing
+spdx-tools>=0.8.0          # SPDX 2.3 parser, streaming-friendly
+packageurl-python>=0.11.0  # PURL type/namespace extraction
+
+# Tabular + ML
+pandas>=2.2.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+pyarrow>=15.0.0            # parquet support (faster than CSV at this scale)
+cvss>=3.6                 # exact CVSS V3 base score from vector
+
+# Graph (PageRank for rank_score, optional GCN support)
+networkx>=3.3.0
+matplotlib>=3.8.0          # confusion matrix plots
+
+# Optional — only needed if doing the GNN stretch goal
+# torch>=2.2.0
+# torch_geometric>=2.5.0

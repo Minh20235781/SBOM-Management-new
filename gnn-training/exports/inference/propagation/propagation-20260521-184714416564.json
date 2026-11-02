@@ -1,0 +1,22 @@
+[
+  {
+    "packageName": "log4j-core",
+    "neighborInfluenceScore": 0.0,
+    "propagationRiskScore": 0.461,
+    "highRiskNeighbors": []
+  },
+  {
+    "packageName": "spring-core",
+    "neighborInfluenceScore": 0.922,
+    "propagationRiskScore": 0.6791,
+    "highRiskNeighbors": [
+      "log4j-core"
+    ]
+  },
+  {
+    "packageName": "commons-io",
+    "neighborInfluenceScore": 0.605,
+    "propagationRiskScore": 0.4995,
+    "highRiskNeighbors": []
+  }
+]

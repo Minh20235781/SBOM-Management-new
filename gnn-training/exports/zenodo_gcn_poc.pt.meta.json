@@ -1,0 +1,20 @@
+{
+  "feature_names": [
+    "advisory_count",
+    "critical_count",
+    "high_count",
+    "medium_count",
+    "low_count",
+    "max_advisory_year",
+    "rank_score",
+    "ecosystem_npm",
+    "ecosystem_Maven",
+    "ecosystem_PyPI",
+    "ecosystem_Packagist",
+    "ecosystem_RubyGems",
+    "ecosystem_Other"
+  ],
+  "input_dim": 13,
+  "model": "gcn",
+  "hidden_dim": 32
+}

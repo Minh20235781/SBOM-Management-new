@@ -1,0 +1,37 @@
+[
+  {
+    "packageName": "log4j-core",
+    "topInfluentialDependencies": [
+      {
+        "dependency": "log4j-core",
+        "influenceScore": 1.0
+      }
+    ]
+  },
+  {
+    "packageName": "spring-core",
+    "topInfluentialDependencies": [
+      {
+        "dependency": "spring-core",
+        "influenceScore": 0.5393267273902893
+      },
+      {
+        "dependency": "log4j-core",
+        "influenceScore": 0.4606732726097107
+      }
+    ]
+  },
+  {
+    "packageName": "commons-io",
+    "topInfluentialDependencies": [
+      {
+        "dependency": "spring-core",
+        "influenceScore": 0.5079048871994019
+      },
+      {
+        "dependency": "commons-io",
+        "influenceScore": 0.49209511280059814
+      }
+    ]
+  }
+]

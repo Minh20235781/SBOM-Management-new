@@ -1,0 +1,76 @@
+.gnn-analysis-graph-container {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #ffffff, #f8fafc);
+  overflow: hidden;
+  min-height: 420px;
+}
+
+.gnn-analysis-link {
+  stroke: rgba(148, 163, 184, 0.6);
+  stroke-width: 1.4;
+  transition: stroke 0.3s ease;
+}
+
+.gnn-analysis-link-propagation {
+  stroke: rgba(249, 115, 22, 0.7);
+  stroke-width: 2.2;
+  stroke-dasharray: 4 6;
+  animation: gnn-propagation-flow 2.4s linear infinite;
+}
+
+.gnn-analysis-node {
+  stroke: rgba(15, 23, 42, 0.2);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.08));
+}
+
+.gnn-analysis-node-high {
+  animation: gnn-risk-pulse 2s ease-in-out infinite;
+}
+
+.gnn-analysis-node-attention {
+  filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.6));
+}
+
+.gnn-analysis-node-propagation {
+  filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.6));
+}
+
+.gnn-analysis-label {
+  font-size: 10px;
+  fill: #1f2937;
+  text-shadow: 0 0 4px rgba(226, 232, 240, 0.8);
+}
+
+.gnn-analysis-tooltip {
+  position: absolute;
+  background: #111827;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #f9fafb;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  pointer-events: none;
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.2);
+}
+
+@keyframes gnn-risk-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.8));
+  }
+}
+
+@keyframes gnn-propagation-flow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -20;
+  }
+}

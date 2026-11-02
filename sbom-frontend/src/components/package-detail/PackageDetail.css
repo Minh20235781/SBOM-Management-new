@@ -1,0 +1,369 @@
+/* PackageDetail.css */
+
+/* Main Container */
+.package-detail {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  min-height: 100vh;
+}
+
+/* Header */
+.package-header {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  animation: slideDown 0.5s ease-out;
+}
+
+.package-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.package-header {
+  text-align: center; /* center title and subtitle */
+}
+
+.package-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  gap: 3rem; /* slightly tighter grid to reduce whitespace */
+  animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+@media (min-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Metric Card */
+.metric-card {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* center metric content to avoid large left whitespace */
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.metric-card:nth-child(1)::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.metric-card:nth-child(2)::before { background: linear-gradient(90deg, #10b981, #34d399); }
+.metric-card:nth-child(3)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.metric-card:nth-child(4)::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+.metric-card:nth-child(5)::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+
+.metric-value {
+  font-size: 1.3rem; /* slightly smaller to balance space */
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0.5rem 0;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress Bar */
+.metric-progress {
+  margin-top: 1rem;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.progress-percentage {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.progress-bar {
+  height: 1rem;
+  background-color: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+/* Risk-specific progress colors */
+.metric-card:nth-child(4) .progress-fill {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.metric-card:nth-child(5) .progress-fill {
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+/* Graph Section */
+.graph-section {
+  background: white;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  animation: fadeIn 0.6s ease-out 0.4s both;
+}
+
+.graph-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.graph-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 3rem;
+}
+
+.loading-spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  font-size: 1rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 3rem;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 3rem;
+  color: #ef4444;
+}
+
+.error-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.error-message {
+  font-size: 0.875rem;
+  color: #6b7280;
+  max-width: 300px;
+}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .package-detail {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .package-header {
+    padding: 1.25rem;
+  }
+  
+  .package-title {
+    font-size: 1.5rem;
+  }
+  
+  .metric-card {
+    padding: 1rem;
+  }
+  
+  .metric-value {
+    font-size: 1.25rem;
+  }
+  
+  .graph-header {
+    padding: 1rem 1.25rem;
+  }
+  
+  .graph-title {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .package-title {
+    font-size: 1.25rem;
+  }
+  
+  .metric-card {
+    padding: 0.875rem;
+  }
+  
+  .metric-value {
+    font-size: 1.125rem;
+  }
+  
+  .loading-state,
+  .error-state {
+    padding: 2rem;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .package-detail {
+    padding: 0;
+    background: white;
+  }
+  
+  .package-header,
+  .metric-card,
+  .graph-section {
+    box-shadow: none;
+    border: 1px solid #d1d5db;
+    page-break-inside: avoid;
+  }
+  
+  .metric-card:hover {
+    transform: none;
+  }
+}

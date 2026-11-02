@@ -1,0 +1,24 @@
+.layout {
+ display: flex;
+ height: 100vh;
+ width: 100%;
+ background: var(--bg-app);
+ overflow: hidden;
+}
+
+.main {
+ flex: 1 1 auto;
+ display: flex;
+ flex-direction: column;
+ min-width: 0;
+}
+
+.content {
+ flex: 1 1 auto;
+ overflow-y: auto;
+ overflow-x: hidden;
+ padding: var(--space-6) var(--space-8);
+ max-width: var(--content-max-width);
+ width: 100%;
+ margin: 0 auto;
+}

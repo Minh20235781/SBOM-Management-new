@@ -1,0 +1,4 @@
+/* App-level overrides. Component styles live in *.module.css. The
+ legacy Vite scaffolding rules that limited #root to a fixed width
+ and centered text are removed so the AppLayout can stretch
+ full-width. */

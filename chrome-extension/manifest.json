@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "SBOM Runtime DevTools Inspector",
+  "version": "1.0.0",
+  "description": "Chrome DevTools Extension thu thập sự kiện mạng và JavaScript Runtime phục vụ đối sánh SBOM",
+  "devtools_page": "devtools.html",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8080/*",
+    "http://*/*",
+    "https://*/*"
+  ]
+}
+

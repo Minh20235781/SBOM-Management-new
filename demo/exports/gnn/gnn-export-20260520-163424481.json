@@ -1,0 +1,49 @@
+{
+  "nodes" : [ {
+    "features" : {
+      "kevCount" : 1,
+      "avgCvss" : 8.4,
+      "vulnerabilityCount" : 3,
+      "severityWeight" : 0.88,
+      "maxEpss" : 0.97,
+      "moduleRank" : 0.82,
+      "avgEpss" : 0.71,
+      "maxCvss" : 10.0
+    },
+    "packageName" : "log4j-core",
+    "nodeId" : 1
+  }, {
+    "features" : {
+      "kevCount" : 0,
+      "avgCvss" : 6.1,
+      "vulnerabilityCount" : 1,
+      "severityWeight" : 0.54,
+      "maxEpss" : 0.38,
+      "moduleRank" : 0.76,
+      "avgEpss" : 0.22,
+      "maxCvss" : 7.5
+    },
+    "packageName" : "spring-core",
+    "nodeId" : 2
+  }, {
+    "features" : {
+      "kevCount" : 0,
+      "avgCvss" : 4.2,
+      "vulnerabilityCount" : 1,
+      "severityWeight" : 0.31,
+      "maxEpss" : 0.12,
+      "moduleRank" : 0.61,
+      "avgEpss" : 0.08,
+      "maxCvss" : 5.6
+    },
+    "packageName" : "commons-io",
+    "nodeId" : 3
+  } ],
+  "edges" : [ {
+    "source" : 1,
+    "target" : 2
+  }, {
+    "source" : 2,
+    "target" : 3
+  } ]
+}

@@ -1,0 +1,417 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:307a5277-d94b-4e7e-b900-a807f286d7b4",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-20T22:37:44+00:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "manufacturer": {
+            "name": "Aqua Security Software Ltd."
+          },
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "0.74.0"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "f977ee06-8e87-48d9-b13f-614dc2ed669e",
+      "type": "application",
+      "name": "https://github.com/spring-projects/spring-petclinic",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:SchemaVersion",
+          "value": "2"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "11ee51b1-2782-4158-9e21-a820ab8a3aeb",
+      "type": "application",
+      "name": "pom.xml",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:Class",
+          "value": "lang-pkgs"
+        },
+        {
+          "name": "aquasecurity:trivy:Type",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/com.github.ben-manes.caffeine/caffeine",
+      "type": "library",
+      "group": "com.github.ben-manes.caffeine",
+      "name": "caffeine",
+      "purl": "pkg:maven/com.github.ben-manes.caffeine/caffeine",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "com.github.ben-manes.caffeine:caffeine::70059a79"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/com.h2database/h2",
+      "type": "library",
+      "group": "com.h2database",
+      "name": "h2",
+      "purl": "pkg:maven/com.h2database/h2",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "com.h2database:h2::a869a5f2"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/com.mysql/mysql-connector-j",
+      "type": "library",
+      "group": "com.mysql",
+      "name": "mysql-connector-j",
+      "purl": "pkg:maven/com.mysql/mysql-connector-j",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "com.mysql:mysql-connector-j::acb636e1"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/jakarta.xml.bind/jakarta.xml.bind-api",
+      "type": "library",
+      "group": "jakarta.xml.bind",
+      "name": "jakarta.xml.bind-api",
+      "purl": "pkg:maven/jakarta.xml.bind/jakarta.xml.bind-api",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "jakarta.xml.bind:jakarta.xml.bind-api::e05a0f7e"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/javax.cache/cache-api",
+      "type": "library",
+      "group": "javax.cache",
+      "name": "cache-api",
+      "purl": "pkg:maven/javax.cache/cache-api",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "javax.cache:cache-api::678de377"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.postgresql/postgresql",
+      "type": "library",
+      "group": "org.postgresql",
+      "name": "postgresql",
+      "purl": "pkg:maven/org.postgresql/postgresql",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.postgresql:postgresql::46651406"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-actuator",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-actuator",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-actuator",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-actuator::b9ac4e9f"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-cache",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-cache",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-cache",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-cache::569939f0"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-data-jpa",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-jpa",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-data-jpa",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-data-jpa::5bc4f484"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-thymeleaf",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-thymeleaf",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-thymeleaf",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-thymeleaf::b2c46f8a"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-validation",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-validation",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-validation",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-validation::21d74adc"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.boot/spring-boot-starter-webmvc",
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-webmvc",
+      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-webmvc",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.boot:spring-boot-starter-webmvc::4566df32"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.springframework.samples/spring-petclinic@4.0.0-SNAPSHOT",
+      "type": "library",
+      "group": "org.springframework.samples",
+      "name": "spring-petclinic",
+      "version": "4.0.0-SNAPSHOT",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "purl": "pkg:maven/org.springframework.samples/spring-petclinic@4.0.0-SNAPSHOT",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.springframework.samples:spring-petclinic:4.0.0-SNAPSHOT::edaab388"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.webjars.npm/bootstrap@5.3.8",
+      "type": "library",
+      "group": "org.webjars.npm",
+      "name": "bootstrap",
+      "version": "5.3.8",
+      "purl": "pkg:maven/org.webjars.npm/bootstrap@5.3.8",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.webjars.npm:bootstrap:5.3.8::4e794486"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.webjars.npm/font-awesome@4.7.0",
+      "type": "library",
+      "group": "org.webjars.npm",
+      "name": "font-awesome",
+      "version": "4.7.0",
+      "purl": "pkg:maven/org.webjars.npm/font-awesome@4.7.0",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.webjars.npm:font-awesome:4.7.0::6a862993"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:maven/org.webjars/webjars-locator-lite@1.1.3",
+      "type": "library",
+      "group": "org.webjars",
+      "name": "webjars-locator-lite",
+      "version": "1.1.3",
+      "purl": "pkg:maven/org.webjars/webjars-locator-lite@1.1.3",
+      "properties": [
+        {
+          "name": "aquasecurity:trivy:PkgID",
+          "value": "org.webjars:webjars-locator-lite:1.1.3::53573c55"
+        },
+        {
+          "name": "aquasecurity:trivy:PkgType",
+          "value": "pom"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "11ee51b1-2782-4158-9e21-a820ab8a3aeb",
+      "dependsOn": [
+        "pkg:maven/org.springframework.samples/spring-petclinic@4.0.0-SNAPSHOT"
+      ]
+    },
+    {
+      "ref": "f977ee06-8e87-48d9-b13f-614dc2ed669e",
+      "dependsOn": [
+        "11ee51b1-2782-4158-9e21-a820ab8a3aeb"
+      ]
+    },
+    {
+      "ref": "pkg:maven/com.github.ben-manes.caffeine/caffeine",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/com.h2database/h2",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/com.mysql/mysql-connector-j",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/jakarta.xml.bind/jakarta.xml.bind-api",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/javax.cache/cache-api",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.postgresql/postgresql",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-actuator",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-cache",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-data-jpa",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-thymeleaf",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-validation",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.boot/spring-boot-starter-webmvc",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.springframework.samples/spring-petclinic@4.0.0-SNAPSHOT",
+      "dependsOn": [
+        "pkg:maven/org.webjars.npm/bootstrap@5.3.8",
+        "pkg:maven/org.webjars.npm/font-awesome@4.7.0",
+        "pkg:maven/org.webjars/webjars-locator-lite@1.1.3"
+      ]
+    },
+    {
+      "ref": "pkg:maven/org.webjars.npm/bootstrap@5.3.8",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.webjars.npm/font-awesome@4.7.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:maven/org.webjars/webjars-locator-lite@1.1.3",
+      "dependsOn": []
+    }
+  ],
+  "vulnerabilities": []
+}

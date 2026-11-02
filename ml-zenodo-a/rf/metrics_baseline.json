@@ -1,0 +1,62 @@
+{
+  "notes": "Re-run of the legacy 689-row pipeline. The legacy labeler (preprocess_dataset.py) uses the same cvss/severity columns as the features, so high F1 here reflects the model learning the label-generation heuristic rather than real risk. Compare against ml-zenodo-a/rf/metrics_train.json for the honest OSV-labeled numbers.",
+  "train_rows": 550,
+  "test_rows": 138,
+  "macro_f1": 1.0,
+  "weighted_f1": 1.0,
+  "per_class": {
+    "low": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 100.0
+    },
+    "medium": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 33.0
+    },
+    "high": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 138.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 138.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      100,
+      0,
+      0
+    ],
+    [
+      0,
+      33,
+      0
+    ],
+    [
+      0,
+      0,
+      5
+    ]
+  ],
+  "label_order": [
+    "low",
+    "medium",
+    "high"
+  ]
+}
