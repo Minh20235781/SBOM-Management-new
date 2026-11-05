@@ -202,9 +202,3 @@ node -r ./scripts/nodejs-runtime-collector/nodejs-agent.js test-apps/sample-app/
 | `POST` | `/api/reconciliation/poc/export-csv` | Xuất kết quả đối soát ra file báo cáo bảng CSV |
 | `GET` | `/api/reconciliation/live-f12-stream/sse` | Luồng sự kiện Server-Sent Events (SSE) đẩy dữ liệu F12 thời gian thực |
 | `POST` | `/api/reconciliation/node-agent-collector` | Tiếp nhận báo cáo module nạp trong bộ nhớ từ Node.js Agent |
-
----
-
-## 9. Đóng Góp & Bản Quyền
-
-Dự án được xây dựng phục vụ nghiên cứu và bảo vệ Đồ án tốt nghiệp tại Bộ môn Hệ thống Thông tin / An toàn Thông tin - Trường Công nghệ Thông tin & Truyền thông - Đại học Bách khoa Hà Nội.
