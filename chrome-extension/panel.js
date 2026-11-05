@@ -83,6 +83,17 @@ function sendToBackend() {
   });
 }
 
+// Bắt sự kiện khi người dùng nhấn F5 hoặc chuyển trang (Navigated)
+chrome.devtools.network.onNavigated.addListener((url) => {
+  if (!isRecording) return;
+  capturedRequests = [];
+  updateStats();
+  renderTable();
+  // Thông báo ngay sang Backend khi trang F5 tải lại
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(sendToBackend, 150);
+});
+
 // Bắt sự kiện mạng qua DevTools Network API
 chrome.devtools.network.onRequestFinished.addListener((request) => {
   if (!isRecording) return;
@@ -117,9 +128,9 @@ chrome.devtools.network.onRequestFinished.addListener((request) => {
   updateStats();
   renderTable();
 
-  // Tự động đẩy sang Backend mỗi khi có thêm tài nguyên mới
+  // Tự động đẩy sang Backend nhanh chóng (250ms) để hiển thị real-time
   if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(sendToBackend, 1000);
+  debounceTimer = setTimeout(sendToBackend, 250);
 });
 
 toggleBtn.addEventListener("click", () => {

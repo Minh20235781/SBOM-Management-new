@@ -13,6 +13,7 @@ import AIPage from "./pages/AI/AIPage.jsx";
 import GNNPage from "./pages/GNN/GNNPage.jsx";
 import TrustScorePage from "./pages/TrustScore/TrustScorePage.jsx";
 import ReconciliationPage from "./pages/Reconciliation/ReconciliationPage.jsx";
+import SbomProvenancePage from "./pages/Provenance/SbomProvenancePage.jsx";
 import Toaster from "./components/shared/Toaster.jsx";
 
 /**
@@ -46,6 +47,7 @@ function App() {
 					<Route path="/ai" element={<AIPage />} />
 					<Route path="/gnn" element={<GNNPage />} />
 					<Route path="/trust-score" element={<TrustScorePage />} />
+					<Route path="/provenance" element={<SbomProvenancePage />} />
 					<Route path="/reconciliation" element={<ReconciliationPage />} />
 					<Route path="/vulns" element={<VulnsPage />} />
 					<Route path="/audit" element={<AuditTimeline />} />

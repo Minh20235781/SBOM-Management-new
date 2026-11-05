@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.File;
 import java.net.URI;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +73,31 @@ public class RuntimeReconciliationService {
     // Lưu trữ snapshot Live F12 stream từ browser tab bên phải gửi về (đồng bộ 2 màn hình)
     private final java.util.concurrent.atomic.AtomicReference<Map<String, Object>> latestLiveF12Stream = new java.util.concurrent.atomic.AtomicReference<>();
 
+    // Danh sách kết nối Server-Sent Events (SSE) để đẩy dữ liệu thời gian thực
+    private final List<SseEmitter> sseEmitters = new CopyOnWriteArrayList<>();
+
+    /**
+     * Đăng ký nhận luồng sự kiện F12 Real-time qua SSE
+     */
+    public SseEmitter subscribeLiveF12Stream() {
+        SseEmitter emitter = new SseEmitter(30 * 60 * 1000L); // 30 phút
+        sseEmitters.add(emitter);
+
+        emitter.onCompletion(() -> sseEmitters.remove(emitter));
+        emitter.onTimeout(() -> sseEmitters.remove(emitter));
+        emitter.onError(e -> sseEmitters.remove(emitter));
+
+        Map<String, Object> current = latestLiveF12Stream.get();
+        if (current != null) {
+            try {
+                emitter.send(SseEmitter.event().name("f12-initial").data(current));
+            } catch (Exception e) {
+                sseEmitters.remove(emitter);
+            }
+        }
+        return emitter;
+    }
+
     /**
      * Tiếp nhận dữ liệu Live F12 Network stream từ trang web mục tiêu (hook/snippet khi F5)
      */
@@ -93,6 +120,16 @@ public class RuntimeReconciliationService {
             payload.put("receivedAt", Instant.now().toString());
             latestLiveF12Stream.set(payload);
             log.info("Received Live F12 Network stream from '{}' (active web tab sync)", payload.get("url"));
+
+            // Đẩy ngay lập tức sang toàn bộ client đang mở F12 Inspector qua SSE
+            for (SseEmitter emitter : sseEmitters) {
+                try {
+                    emitter.send(SseEmitter.event().name("f12-update").data(payload));
+                } catch (Exception e) {
+                    sseEmitters.remove(emitter);
+                }
+            }
+
             return Map.of("status", "SUCCESS", "message", "Đã nhận Live F12 stream", "url", String.valueOf(payload.get("url")));
         }
         return Map.of("status", "ERROR", "message", "Payload rỗng");
@@ -867,7 +904,7 @@ public class RuntimeReconciliationService {
         Map<String, Object> cdpResult = runChromiumCdpScan(targetUrl);
         if (cdpResult != null && Boolean.TRUE.equals(cdpResult.get("success"))) {
             log.info("Chromium CDP scan succeeded for '{}'. Returning real evidence-based Runtime SBOM.", targetUrl);
-            return cdpResult;
+            return enrichWithServerRuntimeEvidence(cdpResult);
         }
 
         log.warn("Chromium CDP scan unavailable or failed for '{}'. Falling back to secondary collector.", targetUrl);
@@ -972,7 +1009,142 @@ public class RuntimeReconciliationService {
         response.put("packages", runtimePackages);
         response.put("auditLog", webResult.auditLog);
 
-        return response;
+        return enrichWithServerRuntimeEvidence(response);
+    }
+
+    /**
+     * Hợp nhất bằng chứng Server Runtime (từ Node.js Agent) vào kết quả quét Browser Runtime
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> enrichWithServerRuntimeEvidence(Map<String, Object> result) {
+        if (result == null) return null;
+
+        List<Map<String, Object>> serverPackages = new ArrayList<>();
+        com.example.sbom.dto.reconciliation.NodeAgentReportRequest agentReport = latestNodeAgentReport.get();
+        if (agentReport != null && agentReport.getPackages() != null && !agentReport.getPackages().isEmpty()) {
+            for (RuntimePackageItem p : agentReport.getPackages()) {
+                Map<String, Object> sp = new LinkedHashMap<>();
+                sp.put("name", p.getName());
+                sp.put("version", p.getVersion());
+                sp.put("confidence", "HIGH");
+                sp.put("identificationMethod", "NODEJS_SERVER_MODULE_LOAD");
+                sp.put("hasExecutionEvidence", true);
+                sp.put("evidence", "Thư viện nạp thực tế trong máy chủ Node.js qua Module._load (PID: " + agentReport.getPid() + ")");
+                sp.put("source", "NODEJS_SERVER");
+                serverPackages.add(sp);
+            }
+        } else {
+            File inventoryFile = new File("runtime-evidence/server-runtime-inventory.json");
+            if (!inventoryFile.exists()) {
+                inventoryFile = new File("../runtime-evidence/server-runtime-inventory.json");
+            }
+            if (inventoryFile.exists()) {
+                try {
+                    JsonNode invNode = objectMapper.readTree(inventoryFile);
+                    JsonNode pkgs = invNode.path("packages");
+                    if (pkgs.isArray()) {
+                        String pid = invNode.path("pid").asText("unknown");
+                        for (JsonNode pkg : pkgs) {
+                            String name = pkg.path("name").asText(null);
+                            String version = pkg.path("version").asText("VERSION_UNKNOWN");
+                            if (name != null) {
+                                Map<String, Object> sp = new LinkedHashMap<>();
+                                sp.put("name", name);
+                                sp.put("version", version);
+                                sp.put("confidence", "HIGH");
+                                sp.put("identificationMethod", "NODEJS_SERVER_MODULE_LOAD");
+                                sp.put("hasExecutionEvidence", true);
+                                sp.put("evidence", "Thư viện nạp thực tế qua Module._load từ " + pkg.path("callerFile").asText() + " (PID: " + pid + ")");
+                                sp.put("source", "NODEJS_SERVER");
+                                serverPackages.add(sp);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Không thể đọc file inventory: {}", e.getMessage());
+                }
+            }
+        }
+
+        if (serverPackages.isEmpty()) {
+            return result;
+        }
+
+        // Hợp nhất vào packages của result
+        List<Map<String, Object>> existingPackages = (List<Map<String, Object>>) result.get("packages");
+        if (existingPackages == null) {
+            existingPackages = new ArrayList<>();
+            result.put("packages", existingPackages);
+        }
+
+        Set<String> existingNames = existingPackages.stream()
+                .map(p -> normalizeKey((String) p.get("name")))
+                .collect(Collectors.toSet());
+
+        for (Map<String, Object> sp : serverPackages) {
+            String norm = normalizeKey((String) sp.get("name"));
+            if (!existingNames.contains(norm)) {
+                existingNames.add(norm);
+                existingPackages.add(sp);
+            }
+        }
+
+        // Cập nhật CycloneDX SBOM JSON
+        String sbomJsonStr = (String) result.get("sbomJson");
+        if (sbomJsonStr != null && !sbomJsonStr.isBlank()) {
+            try {
+                Map<String, Object> sbomMap = objectMapper.readValue(sbomJsonStr, new TypeReference<Map<String, Object>>() {});
+                List<Map<String, Object>> components = (List<Map<String, Object>>) sbomMap.get("components");
+                if (components == null) {
+                    components = new ArrayList<>();
+                    sbomMap.put("components", components);
+                }
+
+                Set<String> compNames = components.stream()
+                        .map(c -> normalizeKey((String) c.get("name")))
+                        .collect(Collectors.toSet());
+
+                for (Map<String, Object> sp : serverPackages) {
+                    String sName = (String) sp.get("name");
+                    String sVer = (String) sp.get("version");
+                    if (sVer == null || sVer.isBlank()) sVer = "1.0.0";
+                    String norm = normalizeKey(sName);
+
+                    if (!compNames.contains(norm)) {
+                        compNames.add(norm);
+                        Map<String, Object> c = new LinkedHashMap<>();
+                        c.put("bom-ref", "pkg:npm/" + sName + "@" + sVer + "?runtime-source=nodejs-server");
+                        c.put("type", "library");
+                        c.put("name", sName);
+                        c.put("version", sVer);
+                        c.put("purl", "pkg:npm/" + sName + "@" + sVer);
+                        c.put("properties", List.of(
+                                Map.of("name", "runtime:confidence", "value", "HIGH"),
+                                Map.of("name", "runtime:identificationMethod", "value", "NODEJS_SERVER_MODULE_LOAD"),
+                                Map.of("name", "runtime:hasExecutionEvidence", "value", "true"),
+                                Map.of("name", "runtime:collectionSource", "value", "NODEJS_SERVER")
+                        ));
+                        components.add(c);
+                    }
+                }
+
+                result.put("sbomJson", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(sbomMap));
+                result.put("componentCount", components.size());
+            } catch (Exception e) {
+                log.warn("Không thể cập nhật CycloneDX với server packages: {}", e.getMessage());
+            }
+        }
+
+        // Bổ sung thông tin server vào auditLog
+        Map<String, Object> auditLog = (Map<String, Object>) result.get("auditLog");
+        if (auditLog != null) {
+            Map<String, Object> serverInfo = new LinkedHashMap<>();
+            serverInfo.put("serverPackagesCount", serverPackages.size());
+            serverInfo.put("connected", true);
+            auditLog.put("serverRuntime", serverInfo);
+        }
+
+        return result;
     }
 
     /**

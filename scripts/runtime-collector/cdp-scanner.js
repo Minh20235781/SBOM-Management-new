@@ -389,6 +389,14 @@ async function runCdpScan(targetUrl, options = {}) {
             scriptUrl: req.url,
             scriptHash: req.contentHash || ''
           });
+        } else {
+          const item = identifiedPackages.get(key);
+          if (item.version === 'VERSION_UNKNOWN' || !item.version) {
+            item.version = cdn.version;
+            item.confidence = cdn.confidence;
+            item.identificationMethod = cdn.method;
+            item.evidence = `${item.evidence}; ${cdn.evidence}`;
+          }
         }
       }
     });

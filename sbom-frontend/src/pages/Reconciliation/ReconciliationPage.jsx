@@ -57,21 +57,40 @@ export default function ReconciliationPage() {
   const handleSource1FileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSource1FileName(file.name);
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result;
       if (typeof text === "string") {
-        setSource1Content(text);
         try {
           const parsed = JSON.parse(text);
-          const count = parsed.components ? parsed.components.length : (parsed.packages ? parsed.packages.length : 0);
-          setSource1ComponentCount(count);
+
+          // Cơ chế kiểm soát: Chỉ chấp nhận file SBOM tĩnh ĐÃ CHUẨN HÓA VÀ XÁC THỰC NGUỒN GỐC
+          const isNormalizedProperty = parsed.metadata?.properties?.some(
+            (p) => p.name === "devops.provenance.normalized" && p.value === "true"
+          );
+          const components = parsed.components || parsed.packages || [];
+          const withPedigree = components.filter((c) => c.pedigree && Object.keys(c.pedigree).length > 0).length;
+          const hasHighPedigreeRatio = components.length > 0 && withPedigree / components.length >= 0.5;
+
+          if (!isNormalizedProperty && !hasHighPedigreeRatio) {
+            toast.error(
+              "Tệp từ chối: Nguồn 1 chỉ tiếp nhận file SBOM tĩnh đã chuẩn hóa và xác thực nguồn gốc (vui lòng qua trang SBOM Provenance để chuẩn hóa trước)"
+            );
+            setSource1FileName("");
+            setSource1Content("");
+            setSource1ComponentCount(0);
+            return;
+          }
+
+          setSource1FileName(file.name);
+          setSource1Content(text);
+          setSource1ComponentCount(components.length);
+          toast.success(`Đã tiếp nhận SBOM tĩnh đã chuẩn hóa: ${file.name}`);
         } catch (err) {
+          toast.error("Tệp không phải là định dạng JSON SBOM hợp lệ");
           setSource1ComponentCount(0);
         }
-        toast.success(`Đã nạp file SBOM tĩnh: ${file.name}`);
       }
     };
     reader.readAsText(file);
@@ -380,7 +399,7 @@ export default function ReconciliationPage() {
             </div>
 
             <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Tải lên file SBOM tĩnh dạng CycloneDX JSON hoặc SPDX JSON của dự án
+              Yêu cầu tệp SBOM tĩnh <b>đã được chuẩn hóa và xác thực nguồn gốc</b> (có trường pedigree và mã băm toàn vẹn)
             </div>
 
             <input
@@ -405,7 +424,7 @@ export default function ReconciliationPage() {
                   cursor: "pointer",
                 }}
               >
-                Chọn Tệp SBOM Tĩnh
+                Chọn Tệp SBOM Đã Chuẩn Hóa
               </button>
             </div>
           </div>
@@ -469,7 +488,7 @@ export default function ReconciliationPage() {
                 type="text"
                 value={targetWebUrl}
                 onChange={(e) => setTargetWebUrl(e.target.value)}
-                placeholder="Nhập link web, ví dụ: https://... hoặc http://localhost:3000"
+                placeholder="Nhập link web, ví dụ..."
                 style={{
                   flex: 1,
                   padding: "8px 12px",
@@ -614,6 +633,31 @@ export default function ReconciliationPage() {
             targetUrl={targetWebUrl}
             capturedLogs={targetWebRequests}
             onClose={() => setShowF12Inspector(false)}
+            onSyncUpdate={({ synced, count, url }) => {
+              setRuntimeResourceCount(count);
+              if (synced && synced.length > 0) {
+                const detectedPackages = synced
+                  .filter((r) => r.detectedPackage && r.detectedPackage.name)
+                  .map((r) => r.detectedPackage);
+                setRuntimePackageCount(detectedPackages.length);
+                if (!targetWebUrl && url) setTargetWebUrl(url);
+
+                // Tạo CycloneDX SBOM từ luồng live stream nếu chưa có
+                const components = detectedPackages.map((p) => ({
+                  type: "library",
+                  name: p.name,
+                  version: p.version || "1.0.0",
+                  purl: "pkg:npm/" + p.name + "@" + (p.version || "1.0.0"),
+                }));
+                const dynamicSbom = {
+                  bomFormat: "CycloneDX",
+                  specVersion: "1.4",
+                  components: components,
+                };
+                setRuntimeSbomJson(JSON.stringify(dynamicSbom, null, 2));
+                setRuntimeSbomReady(true);
+              }
+            }}
           />
         </div>
       )}
@@ -622,9 +666,9 @@ export default function ReconciliationPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-          gap: 10,
-          marginBottom: 20,
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: 6,
+          marginBottom: 16,
         }}
       >
         <div
@@ -632,13 +676,15 @@ export default function ReconciliationPage() {
             background: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Số Component Tĩnh">
-            Số Component Tĩnh
+            Component Tĩnh
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", marginTop: 2 }}>
             {summary.staticComponentCount}
           </div>
         </div>
@@ -648,13 +694,15 @@ export default function ReconciliationPage() {
             background: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Số Tài Nguyên Runtime">
-            Số Tài Nguyên Runtime
+            Tài Nguyên Runtime
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", marginTop: 2 }}>
             {summary.runtimeResourceCount}
           </div>
         </div>
@@ -664,13 +712,15 @@ export default function ReconciliationPage() {
             background: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
           <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Tổng Dòng Kết Quả">
-            Tổng Dòng Kết Quả
+            Tổng Bản Ghi
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", marginTop: 2 }}>
             {summary.resultCount}
           </div>
         </div>
@@ -680,13 +730,15 @@ export default function ReconciliationPage() {
             background: "rgba(16, 185, 129, 0.08)",
             border: "1px solid rgba(16, 185, 129, 0.3)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 700 }}>
+          <div style={{ fontSize: "11px", color: "#10b981", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             MATCHED
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#10b981", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#10b981", marginTop: 2 }}>
             {summary.statusCounts?.MATCHED || 0}
           </div>
         </div>
@@ -696,13 +748,15 @@ export default function ReconciliationPage() {
             background: "rgba(59, 130, 246, 0.08)",
             border: "1px solid rgba(59, 130, 246, 0.3)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "11px", color: "#3b82f6", fontWeight: 700 }}>
+          <div style={{ fontSize: "11px", color: "#3b82f6", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             STATIC ONLY
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#3b82f6", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#3b82f6", marginTop: 2 }}>
             {summary.statusCounts?.STATIC_ONLY || 0}
           </div>
         </div>
@@ -712,13 +766,15 @@ export default function ReconciliationPage() {
             background: "rgba(239, 68, 68, 0.08)",
             border: "1px solid rgba(239, 68, 68, 0.3)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "11px", color: "#ef4444", fontWeight: 700 }}>
+          <div style={{ fontSize: "11px", color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             RUNTIME ONLY
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#ef4444", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#ef4444", marginTop: 2 }}>
             {summary.statusCounts?.RUNTIME_ONLY || 0}
           </div>
         </div>
@@ -728,13 +784,15 @@ export default function ReconciliationPage() {
             background: "rgba(156, 163, 175, 0.08)",
             border: "1px solid rgba(156, 163, 175, 0.3)",
             borderRadius: "var(--radius-md)",
-            padding: "12px 10px",
+            padding: "8px 6px",
+            minWidth: 0,
+            textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 700 }}>
+          <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             UNRESOLVED
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#9ca3af", marginTop: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#9ca3af", marginTop: 2 }}>
             {summary.statusCounts?.UNRESOLVED || 0}
           </div>
         </div>
@@ -862,13 +920,13 @@ export default function ReconciliationPage() {
                   fontWeight: 700,
                 }}
               >
-                <th style={{ padding: "10px 8px", width: "11%" }}>Trạng Thái</th>
-                <th style={{ padding: "10px 8px", width: "15%" }}>Thành Phần</th>
-                <th style={{ padding: "10px 8px", width: "9%" }}>Phiên Bản Tĩnh</th>
-                <th style={{ padding: "10px 8px", width: "26%" }}>Tài Nguyên Runtime</th>
-                <th style={{ padding: "10px 8px", width: "9%" }}>Phiên Bản Runtime</th>
-                <th style={{ padding: "10px 8px", width: "12%" }}>Tình Trạng Phiên Bản</th>
-                <th style={{ padding: "10px 8px", width: "18%" }}>Bằng Chứng Đối Sánh</th>
+                <th style={{ padding: "8px 6px", width: "10%" }}>Trạng Thái</th>
+                <th style={{ padding: "8px 6px", width: "14%" }}>Thành Phần</th>
+                <th style={{ padding: "8px 6px", width: "9%" }}>Phiên Bản Tĩnh</th>
+                <th style={{ padding: "8px 6px", width: "25%" }}>Tài Nguyên Runtime</th>
+                <th style={{ padding: "8px 6px", width: "10%" }}>Phiên Bản Runtime</th>
+                <th style={{ padding: "8px 6px", width: "12%" }}>Tình Trạng Phiên Bản</th>
+                <th style={{ padding: "8px 6px", width: "20%" }}>Bằng Chứng Đối Sánh</th>
               </tr>
             </thead>
             <tbody>
@@ -905,7 +963,7 @@ export default function ReconciliationPage() {
                       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <td style={{ padding: "10px 8px", verticalAlign: "top" }}>
+                      <td style={{ padding: "8px 6px", verticalAlign: "top" }}>
                         <span
                           style={{
                             display: "inline-block",
@@ -922,7 +980,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           fontWeight: 700,
                           color: "var(--text-primary)",
@@ -935,7 +993,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           fontFamily: "var(--font-mono)",
                           wordBreak: "break-all",
@@ -947,7 +1005,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           wordBreak: "break-all",
                           whiteSpace: "normal",
@@ -975,7 +1033,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           fontFamily: "var(--font-mono)",
                           wordBreak: "break-all",
@@ -987,7 +1045,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           fontSize: "11px",
                           wordBreak: "break-word",
@@ -1000,7 +1058,7 @@ export default function ReconciliationPage() {
 
                       <td
                         style={{
-                          padding: "10px 8px",
+                          padding: "8px 6px",
                           verticalAlign: "top",
                           fontSize: "11px",
                           color: "var(--text-secondary)",

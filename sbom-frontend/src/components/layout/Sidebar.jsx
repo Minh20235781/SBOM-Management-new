@@ -28,6 +28,7 @@ const NAV_SECTIONS = [
 			{ to: "/ai", label: "AI", icon: "ai" },
 			{ to: "/gnn", label: "GNN", icon: "gnn" },
 			{ to: "/trust-score", label: "Trust Score", icon: "shield" },
+			{ to: "/provenance", label: "SBOM Provenance", icon: "shield" },
 			{ to: "/reconciliation", label: "Runtime Reconcile", icon: "shield" },
 		],
 	},

@@ -112,6 +112,14 @@ public class RuntimeReconciliationController {
     }
 
     /**
+     * API SSE: Đẩy luồng sự kiện F12 Network theo thời gian thực (Real-time Server-Sent Events)
+     */
+    @GetMapping(value = "/live-f12-stream/sse", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter subscribeLiveF12Stream() {
+        return reconciliationService.subscribeLiveF12Stream();
+    }
+
+    /**
      * API lấy dữ liệu Live F12 stream mới nhất được gửi từ trang web mục tiêu
      */
     @GetMapping("/live-f12-stream")
@@ -157,7 +165,7 @@ public class RuntimeReconciliationController {
      */
     @PostMapping("/poc/match")
     public ResponseEntity<MatchReport> matchPoc(@RequestBody PocMatchRequest request) {
-        return ResponseEntity.ok(pocService.match(request.sbomContent(), request.harContent()));
+        return ResponseEntity.ok(pocService.match(request.getSbomContentAsString(), request.getHarContentAsString()));
     }
 
     /**

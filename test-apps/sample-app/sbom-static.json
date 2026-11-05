@@ -1,0 +1,96 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-03T10:00:00Z",
+    "tools": [
+      {
+        "vendor": "anchore",
+        "name": "syft",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "sample-node-app",
+      "version": "1.0.0",
+      "description": "Ứng dụng mẫu Node.js phục vụ kiểm chứng thực tế SBOM Tĩnh và SBOM Runtime"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "axios",
+      "version": "1.13.2",
+      "description": "Promise based HTTP client for the browser and node.js",
+      "purl": "pkg:npm/axios@1.13.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "react",
+      "version": "19.2.3",
+      "description": "React is a JavaScript library for building user interfaces.",
+      "purl": "pkg:npm/react@19.2.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "xlsx",
+      "version": "0.18.5",
+      "description": "SheetJS spreadsheet data parser and writer",
+      "purl": "pkg:npm/xlsx@0.18.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jsonwebtoken",
+      "version": "9.0.2",
+      "description": "JSON Web Token implementation (symmetric and asymmetric)",
+      "purl": "pkg:npm/jsonwebtoken@9.0.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "lodash",
+      "version": "4.17.21",
+      "description": "Lodash modular utilities.",
+      "purl": "pkg:npm/lodash@4.17.21",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}
+

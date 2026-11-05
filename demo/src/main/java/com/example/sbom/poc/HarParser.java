@@ -69,10 +69,16 @@ public final class HarParser {
                 entries = root.get("entries");
             } else if (root.has("resources")) {
                 entries = root.get("resources");
+            } else if (root.has("cycloneDxRuntimeSbom") && root.path("cycloneDxRuntimeSbom").has("components")) {
+                entries = root.path("cycloneDxRuntimeSbom").path("components");
+            } else if (root.has("auditLog") && root.path("auditLog").has("capturedNetworkRequests")) {
+                entries = root.path("auditLog").path("capturedNetworkRequests");
             } else if (root.has("auditLog") && root.path("auditLog").has("entries")) {
                 entries = root.path("auditLog").path("entries");
             } else if (root.has("auditLog") && root.path("auditLog").has("requests")) {
                 entries = root.path("auditLog").path("requests");
+            } else if (root.has("capturedNetworkRequests")) {
+                entries = root.get("capturedNetworkRequests");
             } else if (root.has("requests")) {
                 entries = root.get("requests");
             } else if (root.has("components")) {

@@ -124,6 +124,7 @@ export default function F12NetworkInspector({
   capturedLogs = [],
   onExportRuntimeLog = null,
   onClose = null,
+  onSyncUpdate = null,
 }) {
   const [filterType, setFilterType] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -149,76 +150,115 @@ export default function F12NetworkInspector({
   useEffect(() => {
     if (capturedLogs && capturedLogs.length > 0) {
       setTargetWebRequests(capturedLogs);
-      if (!selectedRequest) {
-        setSelectedRequest(capturedLogs[0]);
-      }
     }
   }, [capturedLogs]);
 
-  // Polling Live Sync
+  // Hàm xử lý dữ liệu đồng bộ Real-time từ Browser
+  const processSyncedPayload = (data) => {
+    if (!data) return;
+    const currentUrl = data.url || "";
+    const rawEntries = data.entries || [];
+    const receivedAt = data.receivedAt || new Date().toLocaleTimeString();
+
+    const synced = rawEntries
+      .filter((e) => {
+        const url = e.name || e.url || "";
+        return !url.includes("8080") && !url.includes("live-f12-stream");
+      })
+      .map((e, idx) => {
+        const url = e.name || e.url || "";
+        const detected = detectPackageFromResourceUrl(url);
+        let type = e.initiatorType || "script";
+        if (url.includes(".js") || url.includes("/_next/")) type = "script";
+        else if (url.includes(".css")) type = "stylesheet";
+        else if (url.includes("/api/") || type === "fetch" || type === "xmlhttprequest") type = "fetch";
+
+        return {
+          id: `sync-${idx}-${e.startTime || idx}`,
+          url: url,
+          fileName: url.split("/").pop()?.split("?")[0] || url,
+          type: type,
+          status: e.status || 200,
+          statusText: "OK",
+          sizeBytes: e.size || 15400,
+          durationMs: e.duration || 18,
+          startTimeMs: e.startTime || 0,
+          initiator: e.initiatorType || "script",
+          detectedPackage: detected,
+          isLiveBrowser: true,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+      });
+
+    setLiveSyncRequests(synced);
+    setLiveSyncStatus({
+      connected: true,
+      url: currentUrl,
+      title: data.title || "",
+      count: synced.length,
+      lastReceivedAt: receivedAt,
+    });
+
+    // Tự động chuyển qua tab LIVE_SYNC khi có dữ liệu mới từ F5 hoặc hành động duyệt
+    const syncToken = currentUrl + synced.length + receivedAt;
+    if (synced.length > 0 && lastSyncUrlRef.current !== syncToken) {
+      lastSyncUrlRef.current = syncToken;
+      setSourceTab("LIVE_SYNC");
+    }
+
+    if (onSyncUpdate && synced.length > 0) {
+      onSyncUpdate({
+        synced: synced,
+        count: synced.length,
+        url: currentUrl,
+        rawEntries: rawEntries,
+      });
+    }
+  };
+
+  // Đồng bộ Real-time qua Server-Sent Events (SSE) kết hợp dự phòng Polling nhanh
   useEffect(() => {
     if (!isRecording) return;
 
+    let eventSource = null;
+    try {
+      eventSource = new EventSource("http://localhost:8080/api/reconciliation/live-f12-stream/sse");
+
+      eventSource.addEventListener("f12-initial", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          processSyncedPayload(data);
+        } catch (err) { }
+      });
+
+      eventSource.addEventListener("f12-update", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          processSyncedPayload(data);
+        } catch (err) { }
+      });
+
+      eventSource.onerror = () => {
+        // SSE tự động kết nối lại khi có gián đoạn
+      };
+    } catch (e) {
+      console.warn("Không thể mở EventSource SSE:", e);
+    }
+
+    // Dự phòng Polling chu kỳ 800ms để đảm bảo dữ liệu luôn tươi mới
     const timer = setInterval(async () => {
       try {
         const res = await fetchLatestLiveF12Stream();
         if (res && res.connected && res.data) {
-          const currentUrl = res.data.url || "";
-          const rawEntries = res.data.entries || [];
-
-          const synced = rawEntries
-            .filter((e) => {
-              const url = e.name || e.url || "";
-              return !url.includes("8080") && !url.includes("live-f12-stream");
-            })
-            .map((e, idx) => {
-            const url = e.name || e.url || "";
-            const detected = detectPackageFromResourceUrl(url);
-            let type = e.initiatorType || "script";
-            if (url.includes(".js") || url.includes("/_next/")) type = "script";
-            else if (url.includes(".css")) type = "stylesheet";
-            else if (url.includes("/api/") || type === "fetch" || type === "xmlhttprequest") type = "fetch";
-
-            return {
-              id: `sync-${idx}-${e.startTime || idx}`,
-              url: url,
-              fileName: url.split("/").pop()?.split("?")[0] || url,
-              type: type,
-              status: e.status || 200,
-              statusText: "OK",
-              sizeBytes: e.size || 15400,
-              durationMs: e.duration || 18,
-              startTimeMs: e.startTime || 0,
-              initiator: e.initiatorType || "script",
-              detectedPackage: detected,
-              isLiveBrowser: true,
-              timestamp: new Date().toLocaleTimeString(),
-            };
-          });
-
-          setLiveSyncRequests(synced);
-          setLiveSyncStatus({
-            connected: true,
-            url: currentUrl,
-            title: res.data.title || "",
-            count: synced.length,
-          });
-
-          if (synced.length > 0 && lastSyncUrlRef.current !== currentUrl + synced.length) {
-            lastSyncUrlRef.current = currentUrl + synced.length;
-            setSourceTab("LIVE_SYNC");
-            if (synced.length > 0) setSelectedRequest(synced[0]);
-            toast.success(`Live F12: Đã đồng bộ ${synced.length} requests từ ${cleanDomain(currentUrl)}`, {
-              id: "f12-live-sync-toast",
-            });
-          }
+          processSyncedPayload(res.data);
         }
-      } catch (err) {
-        // bỏ qua lỗi polling
-      }
-    }, 1500);
+      } catch (err) { }
+    }, 800);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (eventSource) eventSource.close();
+      clearInterval(timer);
+    };
   }, [isRecording]);
 
   useEffect(() => {
@@ -234,31 +274,31 @@ export default function F12NetworkInspector({
             return !url.includes("/api/reconciliation") && !url.includes("live-f12-stream");
           })
           .map((entry, idx) => {
-          const url = entry.name;
-          const detected = detectPackageFromResourceUrl(url);
-          const transferSize = entry.transferSize || entry.encodedBodySize || 0;
-          return {
-            id: `live-${Date.now()}-${idx}`,
-            url: url,
-            fileName: url.split("/").pop()?.split("?")[0] || url,
-            type: entry.initiatorType || "script",
-            status: 200,
-            statusText: "OK",
-            sizeBytes: transferSize > 0 ? transferSize : 12400,
-            durationMs: entry.duration ? +entry.duration.toFixed(1) : 15,
-            startTimeMs: entry.startTime ? +entry.startTime.toFixed(1) : 0,
-            initiator: entry.initiatorType || "script",
-            detectedPackage: detected,
-            isLiveBrowser: true,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-        });
+            const url = entry.name;
+            const detected = detectPackageFromResourceUrl(url);
+            const transferSize = entry.transferSize || entry.encodedBodySize || 0;
+            return {
+              id: `live-${Date.now()}-${idx}`,
+              url: url,
+              fileName: url.split("/").pop()?.split("?")[0] || url,
+              type: entry.initiatorType || "script",
+              status: 200,
+              statusText: "OK",
+              sizeBytes: transferSize > 0 ? transferSize : 12400,
+              durationMs: entry.duration ? +entry.duration.toFixed(1) : 15,
+              startTimeMs: entry.startTime ? +entry.startTime.toFixed(1) : 0,
+              initiator: entry.initiatorType || "script",
+              detectedPackage: detected,
+              isLiveBrowser: true,
+              timestamp: new Date().toLocaleTimeString(),
+            };
+          });
 
         setLocalBrowserRequests((prev) => [...newEntries, ...prev].slice(0, 150));
       });
 
       observer.observe({ entryTypes: ["resource"] });
-    } catch (e) {}
+    } catch (e) { }
 
     return () => {
       if (observer) observer.disconnect();
@@ -329,11 +369,11 @@ export default function F12NetworkInspector({
   return (
     <div
       style={{
-        background: "#1e1e24",
-        border: "1px solid #383a48",
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
         borderRadius: "var(--radius-lg)",
         overflow: "hidden",
-        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.45)",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
         fontFamily: "var(--font-sans)",
         marginTop: 16,
       }}
@@ -341,8 +381,8 @@ export default function F12NetworkInspector({
       {/* Header bar */}
       <div
         style={{
-          background: "#282a36",
-          borderBottom: "1px solid #383a48",
+          background: "#f8fafc",
+          borderBottom: "1px solid #e2e8f0",
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
@@ -353,7 +393,7 @@ export default function F12NetworkInspector({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontWeight: 800, color: "#fff", letterSpacing: 0.3, fontSize: 13.5 }}>
+            <span style={{ fontWeight: 800, color: "#0f172a", letterSpacing: 0.3, fontSize: 13.5 }}>
               F12 Network và Memory Inspector Thời Gian Thực
             </span>
             <span
@@ -361,10 +401,10 @@ export default function F12NetworkInspector({
                 fontSize: 10.5,
                 padding: "2px 8px",
                 borderRadius: 12,
-                background: "rgba(16, 185, 129, 0.2)",
-                color: "#10b981",
+                background: "rgba(16, 185, 129, 0.12)",
+                color: "#059669",
                 fontWeight: 700,
-                border: "1px solid rgba(16, 185, 129, 0.4)",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
@@ -386,9 +426,9 @@ export default function F12NetworkInspector({
           <button
             onClick={() => setIsRecording(!isRecording)}
             style={{
-              background: isRecording ? "rgba(239, 68, 68, 0.2)" : "rgba(255, 255, 255, 0.1)",
-              border: isRecording ? "1px solid #ef4444" : "1px solid #555",
-              color: isRecording ? "#ef4444" : "#ccc",
+              background: isRecording ? "rgba(239, 68, 68, 0.08)" : "#ffffff",
+              border: isRecording ? "1px solid #fca5a5" : "1px solid #cbd5e1",
+              color: isRecording ? "#dc2626" : "#475569",
               borderRadius: 4,
               padding: "4px 8px",
               cursor: "pointer",
@@ -405,9 +445,9 @@ export default function F12NetworkInspector({
           <button
             onClick={handleClear}
             style={{
-              background: "transparent",
-              border: "1px solid #44475a",
-              color: "#ccc",
+              background: "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: "#475569",
               borderRadius: 4,
               padding: "4px 8px",
               cursor: "pointer",
@@ -424,9 +464,9 @@ export default function F12NetworkInspector({
             style={{
               padding: "5px 12px",
               borderRadius: 5,
-              background: liveSyncStatus.connected ? "rgba(16, 185, 129, 0.25)" : "rgba(37, 99, 235, 0.2)",
-              color: liveSyncStatus.connected ? "#10b981" : "#60a5fa",
-              border: liveSyncStatus.connected ? "1px solid #10b981" : "1px solid rgba(59, 130, 246, 0.5)",
+              background: liveSyncStatus.connected ? "rgba(16, 185, 129, 0.12)" : "rgba(37, 99, 235, 0.08)",
+              color: liveSyncStatus.connected ? "#059669" : "#2563eb",
+              border: liveSyncStatus.connected ? "1px solid #10b981" : "1px solid #93c5fd",
               fontSize: 11.5,
               fontWeight: 700,
               cursor: "pointer",
@@ -443,9 +483,9 @@ export default function F12NetworkInspector({
             style={{
               padding: "5px 10px",
               borderRadius: 5,
-              background: "#374151",
-              color: "#e5e7eb",
-              border: "1px solid #4b5563",
+              background: "#ffffff",
+              color: "#334155",
+              border: "1px solid #cbd5e1",
               fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
@@ -463,9 +503,9 @@ export default function F12NetworkInspector({
               style={{
                 padding: "5px 10px",
                 borderRadius: 5,
-                background: "rgba(255, 255, 255, 0.1)",
-                color: "#ccc",
-                border: "1px solid #444",
+                background: "#ffffff",
+                color: "#64748b",
+                border: "1px solid #cbd5e1",
                 fontSize: 11.5,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -480,8 +520,8 @@ export default function F12NetworkInspector({
       {/* Tabs */}
       <div
         style={{
-          background: "#181820",
-          borderBottom: "1px solid #2e303f",
+          background: "#f8fafc",
+          borderBottom: "1px solid #e2e8f0",
           padding: "8px 16px",
           display: "flex",
           alignItems: "center",
@@ -491,16 +531,16 @@ export default function F12NetworkInspector({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11.5, color: "#9ca3af", fontWeight: 700 }}>Nguồn tài nguyên:</span>
+          <span style={{ fontSize: 11.5, color: "#64748b", fontWeight: 700 }}>Nguồn tài nguyên:</span>
 
           <button
             onClick={() => setSourceTab("TARGET_WEB")}
             style={{
               padding: "4px 10px",
               borderRadius: 5,
-              background: sourceTab === "TARGET_WEB" ? "#2563eb" : "#282a36",
-              color: sourceTab === "TARGET_WEB" ? "#fff" : "#9ca3af",
-              border: "1px solid " + (sourceTab === "TARGET_WEB" ? "#3b82f6" : "#44475a"),
+              background: sourceTab === "TARGET_WEB" ? "#2563eb" : "#ffffff",
+              color: sourceTab === "TARGET_WEB" ? "#ffffff" : "#475569",
+              border: "1px solid " + (sourceTab === "TARGET_WEB" ? "#2563eb" : "#cbd5e1"),
               fontSize: 11.5,
               fontWeight: 700,
               cursor: "pointer",
@@ -510,7 +550,7 @@ export default function F12NetworkInspector({
             }}
           >
             <span>Web Cần Test: {cleanDomain(targetUrl)}</span>
-            <span style={{ fontSize: 10, background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 10 }}>
+            <span style={{ fontSize: 10, background: sourceTab === "TARGET_WEB" ? "rgba(255,255,255,0.25)" : "#f1f5f9", color: sourceTab === "TARGET_WEB" ? "#ffffff" : "#475569", padding: "1px 6px", borderRadius: 10 }}>
               {targetWebRequests.length}
             </span>
           </button>
@@ -520,9 +560,9 @@ export default function F12NetworkInspector({
             style={{
               padding: "4px 10px",
               borderRadius: 5,
-              background: sourceTab === "LIVE_SYNC" ? "#10b981" : "#282a36",
-              color: sourceTab === "LIVE_SYNC" ? "#fff" : "#9ca3af",
-              border: "1px solid " + (sourceTab === "LIVE_SYNC" ? "#10b981" : "#44475a"),
+              background: sourceTab === "LIVE_SYNC" ? "#10b981" : "#ffffff",
+              color: sourceTab === "LIVE_SYNC" ? "#ffffff" : "#475569",
+              border: "1px solid " + (sourceTab === "LIVE_SYNC" ? "#10b981" : "#cbd5e1"),
               fontSize: 11.5,
               fontWeight: 700,
               cursor: "pointer",
@@ -536,12 +576,12 @@ export default function F12NetworkInspector({
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                background: liveSyncStatus.connected ? "#10b981" : "#6b7280",
+                background: liveSyncStatus.connected ? (sourceTab === "LIVE_SYNC" ? "#ffffff" : "#10b981") : "#94a3b8",
                 boxShadow: liveSyncStatus.connected ? "0 0 6px #10b981" : "none",
               }}
             />
             <span>Live Sync Hai Màn Hình</span>
-            <span style={{ fontSize: 10, background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 10 }}>
+            <span style={{ fontSize: 10, background: sourceTab === "LIVE_SYNC" ? "rgba(255,255,255,0.25)" : "#f1f5f9", color: sourceTab === "LIVE_SYNC" ? "#ffffff" : "#475569", padding: "1px 6px", borderRadius: 10 }}>
               {liveSyncRequests.length}
             </span>
           </button>
@@ -551,9 +591,9 @@ export default function F12NetworkInspector({
             style={{
               padding: "4px 10px",
               borderRadius: 5,
-              background: sourceTab === "LOCAL_TAB" ? "#4b5563" : "#282a36",
-              color: sourceTab === "LOCAL_TAB" ? "#fff" : "#9ca3af",
-              border: "1px solid " + (sourceTab === "LOCAL_TAB" ? "#6b7280" : "#44475a"),
+              background: sourceTab === "LOCAL_TAB" ? "#334155" : "#ffffff",
+              color: sourceTab === "LOCAL_TAB" ? "#ffffff" : "#475569",
+              border: "1px solid " + (sourceTab === "LOCAL_TAB" ? "#334155" : "#cbd5e1"),
               fontSize: 11.5,
               fontWeight: 600,
               cursor: "pointer",
@@ -563,25 +603,25 @@ export default function F12NetworkInspector({
             }}
           >
             <span>Tab Nội Bộ</span>
-            <span style={{ fontSize: 10, background: "rgba(0,0,0,0.3)", padding: "1px 6px", borderRadius: 10 }}>
+            <span style={{ fontSize: 10, background: sourceTab === "LOCAL_TAB" ? "rgba(255,255,255,0.25)" : "#f1f5f9", color: sourceTab === "LOCAL_TAB" ? "#ffffff" : "#475569", padding: "1px 6px", borderRadius: 10 }}>
               {localBrowserRequests.length}
             </span>
           </button>
         </div>
 
-        <div style={{ fontSize: 11.5, color: "#a1a1aa" }}>
+        <div style={{ fontSize: 11.5, color: "#64748b" }}>
           {sourceTab === "TARGET_WEB" ? (
             <span>
-              Đang soi tài nguyên của: <code style={{ color: "#60a5fa" }}>{targetUrl || "http://localhost:3000"}</code>
+              Đang soi tài nguyên của: <code style={{ color: "#2563eb", fontWeight: 600 }}>{targetUrl || "http://localhost:3000"}</code>
             </span>
           ) : sourceTab === "LIVE_SYNC" ? (
             <span>
               {liveSyncStatus.connected ? (
-                <span style={{ color: "#10b981", fontWeight: 700 }}>
+                <span style={{ color: "#059669", fontWeight: 700 }}>
                   Đang kết nối trực tiếp với: {cleanDomain(liveSyncStatus.url)}
                 </span>
               ) : (
-                <span style={{ color: "#f59e0b" }}>
+                <span style={{ color: "#d97706" }}>
                   Chưa nối tab web. Bấm Nối Live F12 Hai Cửa Sổ để bắt sự kiện tải trang
                 </span>
               )}
@@ -601,7 +641,7 @@ export default function F12NetworkInspector({
             left: 0,
             right: 0,
             bottom: 0,
-            background: "rgba(0, 0, 0, 0.75)",
+            background: "rgba(15, 23, 42, 0.6)",
             backdropFilter: "blur(4px)",
             zIndex: 10000,
             display: "flex",
@@ -613,23 +653,23 @@ export default function F12NetworkInspector({
         >
           <div
             style={{
-              background: "#18181f",
-              border: "1px solid #3b82f6",
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
               borderRadius: "var(--radius-xl)",
               maxWidth: 720,
               width: "100%",
               padding: 24,
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.6)",
-              color: "#f4f4f5",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
+              color: "#0f172a",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>
                   Kết Nối Trực Tiếp Hai Màn Hình Live F12 Sync
                 </div>
-                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                   Khi bạn tải lại trang web mục tiêu, F12 của công cụ sẽ hiển thị đồng bộ thời gian thực
                 </div>
               </div>
@@ -638,7 +678,7 @@ export default function F12NetworkInspector({
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "#9ca3af",
+                  color: "#64748b",
                   fontSize: 14,
                   fontWeight: 700,
                   cursor: "pointer",
@@ -648,31 +688,31 @@ export default function F12NetworkInspector({
               </button>
             </div>
 
-            <div style={{ fontSize: 13, color: "#d1d5db", lineHeight: 1.6, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, marginBottom: 16 }}>
               Chọn một trong các phương thức đồng bộ dữ liệu F12 thực tế:
-              <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(37, 99, 235, 0.15)", border: "1px solid rgba(59, 130, 246, 0.4)", borderRadius: 6 }}>
-                <b style={{ color: "#60a5fa" }}>Phương thức 1: Tự động qua nút Run (Khuyến nghị)</b>
-                <div style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4 }}>
+              <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(37, 99, 235, 0.08)", border: "1px solid rgba(59, 130, 246, 0.3)", borderRadius: 6 }}>
+                <b style={{ color: "#1d4ed8" }}>Phương thức 1: Tự động qua nút Run (Khuyến nghị)</b>
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
                   Chỉ cần nhập URL tại Nguồn 2 và bấm nút Run. Bộ máy Chromium CDP Instrumentation sẽ tự động khởi chạy, thu thập toàn bộ Network, Scripts, Execution Coverage và Memory thực tế.
                 </div>
               </div>
 
-              <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.4)", borderRadius: 6 }}>
-                <b style={{ color: "#34d399" }}>Phương thức 2: Tiện ích mở rộng Chrome DevTools Extension</b>
-                <div style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4 }}>
+              <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: 6 }}>
+                <b style={{ color: "#047857" }}>Phương thức 2: Tiện ích mở rộng Chrome DevTools Extension</b>
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
                   Mở <code>chrome://extensions</code> trên trình duyệt Chrome, bật Developer mode, chọn "Load unpacked" và trỏ tới thư mục <code>chrome-extension</code> của dự án. Mở F12 trên tab web cần kiểm tra và chọn panel "SBOM Inspector".
                 </div>
               </div>
 
-              <div style={{ marginTop: 10, fontSize: 12, color: "#9ca3af" }}>
+              <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>
                 Hoặc nếu muốn chạy nhanh trực tiếp trên Console mà không cần cài extension, dán đoạn mã sau vào tab Console của trang web cần test:
               </div>
             </div>
 
             <div
               style={{
-                background: "#0f0f14",
-                border: "1px solid #2e303f",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
                 borderRadius: 8,
                 padding: 12,
                 position: "relative",
@@ -684,7 +724,7 @@ export default function F12NetworkInspector({
                   margin: 0,
                   fontSize: 11.5,
                   fontFamily: "Consolas, monospace",
-                  color: "#34d399",
+                  color: "#0f766e",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
                   maxHeight: 120,
@@ -718,7 +758,7 @@ export default function F12NetworkInspector({
     })
     .catch(() => {})
     .finally(() => {
-      setTimeout(() => { isSending = false; }, 800);
+      setTimeout(() => { isSending = false; }, 200);
     });
   };
   syncF12();
@@ -729,18 +769,18 @@ export default function F12NetworkInspector({
     });
     if (hasExternal) {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(syncF12, 800);
+      timer = setTimeout(syncF12, 200);
     }
   }).observe({ entryTypes: ["resource"] });
   window.addEventListener("beforeunload", syncF12);
-  console.log("ĐÃ KẾT NỐI LIVE F12 VỚI CÔNG CỤ SBOM THÀNH CÔNG");
+  console.log("ĐÃ KẾT NỐI LIVE F12 REALTIME VỚI CÔNG CỤ SBOM");
 })();`}
               </pre>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#10b981" }}>
-                Sau khi dán mã vào Console, mỗi lần trang web nạp tài nguyên thì bên công cụ sẽ cập nhật ngay
+              <span style={{ fontSize: 12, color: "#059669" }}>
+                Sau khi kết nối, mỗi lần trang web nạp tài nguyên hoặc F5 thì bên công cụ sẽ cập nhật real-time ngay
               </span>
 
               <div style={{ display: "flex", gap: 10 }}>
@@ -773,7 +813,7 @@ export default function F12NetworkInspector({
     })
     .catch(() => {})
     .finally(() => {
-      setTimeout(() => { isSending = false; }, 800);
+      setTimeout(() => { isSending = false; }, 200);
     });
   };
   syncF12();
@@ -784,11 +824,11 @@ export default function F12NetworkInspector({
     });
     if (hasExternal) {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(syncF12, 800);
+      timer = setTimeout(syncF12, 200);
     }
   }).observe({ entryTypes: ["resource"] });
   window.addEventListener("beforeunload", syncF12);
-  console.log("ĐÃ KẾT NỐI LIVE F12 VỚI CÔNG CỤ SBOM THÀNH CÔNG");
+  console.log("ĐÃ KẾT NỐI LIVE F12 REALTIME VỚI CÔNG CỤ SBOM");
 })();`;
                     navigator.clipboard.writeText(snippet);
                     toast.success("Đã sao chép mã Console vào clipboard");
@@ -805,16 +845,16 @@ export default function F12NetworkInspector({
                     boxShadow: "0 2px 6px rgba(37, 99, 235, 0.4)",
                   }}
                 >
-                  Sao Chép Mã Console
+                  Sao chép mã
                 </button>
                 <button
                   onClick={() => setShowConnectModal(false)}
                   style={{
                     padding: "8px 14px",
                     borderRadius: 6,
-                    background: "#27272a",
-                    color: "#e4e4e7",
-                    border: "1px solid #3f3f46",
+                    background: "#f1f5f9",
+                    color: "#334155",
+                    border: "1px solid #cbd5e1",
                     fontSize: 12.5,
                     cursor: "pointer",
                   }}
@@ -830,8 +870,8 @@ export default function F12NetworkInspector({
       {/* Filter Bar */}
       <div
         style={{
-          background: "#21222c",
-          borderBottom: "1px solid #383a48",
+          background: "#ffffff",
+          borderBottom: "1px solid #e2e8f0",
           padding: "8px 16px",
           display: "flex",
           alignItems: "center",
@@ -854,9 +894,9 @@ export default function F12NetworkInspector({
                 fontSize: 11,
                 padding: "3px 10px",
                 borderRadius: 4,
-                border: filterType === t.key ? "1px solid #6272a4" : "1px solid transparent",
-                background: filterType === t.key ? "#44475a" : "transparent",
-                color: filterType === t.key ? "#fff" : "#8be9fd",
+                border: filterType === t.key ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                background: filterType === t.key ? "#2563eb" : "#ffffff",
+                color: filterType === t.key ? "#ffffff" : "#475569",
                 cursor: "pointer",
                 fontWeight: filterType === t.key ? 700 : 500,
               }}
@@ -865,9 +905,9 @@ export default function F12NetworkInspector({
             </button>
           ))}
 
-          <span style={{ color: "#6272a4", margin: "0 4px" }}>|</span>
+          <span style={{ color: "#cbd5e1", margin: "0 4px" }}>|</span>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11.5, color: "#f1fa8c" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11.5, color: "#1e293b" }}>
             <input
               type="checkbox"
               checked={onlySbomPackages}
@@ -888,9 +928,9 @@ export default function F12NetworkInspector({
               width: "100%",
               padding: "5px 10px",
               borderRadius: 4,
-              border: "1px solid #44475a",
-              background: "#1e1e24",
-              color: "#f8f8f2",
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#0f172a",
               fontSize: 11.5,
               outline: "none",
             }}
@@ -902,8 +942,8 @@ export default function F12NetworkInspector({
       <div style={{ display: "grid", gridTemplateColumns: selectedRequest ? "1fr 340px" : "1fr", maxHeight: 420, overflow: "hidden" }}>
         <div style={{ overflowY: "auto", maxHeight: 420 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 11.5 }}>
-            <thead style={{ position: "sticky", top: 0, background: "#21222c", zIndex: 2, borderBottom: "1px solid #44475a" }}>
-              <tr style={{ color: "#bd93f9", fontWeight: 700 }}>
+            <thead style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 2, borderBottom: "1px solid #e2e8f0" }}>
+              <tr style={{ color: "#475569", fontWeight: 700 }}>
                 <th style={{ padding: "8px 12px", width: "32%" }}>Tên File</th>
                 <th style={{ padding: "8px 8px", width: "10%" }}>Trạng thái</th>
                 <th style={{ padding: "8px 8px", width: "10%" }}>Loại</th>
@@ -916,7 +956,7 @@ export default function F12NetworkInspector({
             <tbody>
               {filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: 30, color: "#6272a4" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: 30, color: "#94a3b8" }}>
                     Không tìm thấy request mạng nào khớp với bộ lọc
                   </td>
                 </tr>
@@ -928,52 +968,52 @@ export default function F12NetworkInspector({
                   return (
                     <tr
                       key={req.id}
-                      onClick={() => setSelectedRequest(req)}
+                      onClick={() => setSelectedRequest((prev) => (prev?.id === req.id ? null : req))}
                       style={{
-                        borderBottom: "1px solid #2d303e",
-                        background: isSelected ? "rgba(189, 147, 249, 0.15)" : "transparent",
+                        borderBottom: "1px solid #f1f5f9",
+                        background: isSelected ? "#eff6ff" : "transparent",
                         cursor: "pointer",
                         transition: "background 0.1s ease",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelected) e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                        if (!isSelected) e.currentTarget.style.background = "#f8fafc";
                       }}
                       onMouseLeave={(e) => {
                         if (!isSelected) e.currentTarget.style.background = "transparent";
                       }}
                     >
                       <td style={{ padding: "7px 12px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        <span style={{ color: req.type === "script" ? "#f1fa8c" : "#8be9fd", fontWeight: 600 }}>
+                        <span style={{ color: req.type === "script" ? "#1e293b" : "#0284c7", fontWeight: 600 }}>
                           {req.fileName}
                         </span>
-                        <div style={{ fontSize: 10, color: "#6272a4", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: 10, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {req.url}
                         </div>
                       </td>
 
                       <td style={{ padding: "7px 8px" }}>
-                        <span style={{ color: "#50fa7b", fontWeight: 700 }}>
+                        <span style={{ color: "#16a34a", fontWeight: 700 }}>
                           {req.status}
                         </span>
                       </td>
 
-                      <td style={{ padding: "7px 8px", color: "#ff79c6" }}>{req.type}</td>
+                      <td style={{ padding: "7px 8px", color: "#475569" }}>{req.type}</td>
 
-                      <td style={{ padding: "7px 8px", color: "#f8f8f2", fontFamily: "var(--font-mono)" }}>
+                      <td style={{ padding: "7px 8px", color: "#334155", fontFamily: "var(--font-mono)" }}>
                         {(req.sizeBytes / 1024).toFixed(1)} KB
                       </td>
 
-                      <td style={{ padding: "7px 8px", color: "#50fa7b", fontFamily: "var(--font-mono)" }}>
+                      <td style={{ padding: "7px 8px", color: "#059669", fontFamily: "var(--font-mono)" }}>
                         {req.durationMs} ms
                       </td>
 
                       <td style={{ padding: "7px 12px" }}>
-                        <div style={{ width: "100%", height: 8, background: "#282a36", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
                           <div
                             style={{
                               width: `${waterfallPercent}%`,
                               height: "100%",
-                              background: req.detectedPackage ? "linear-gradient(90deg, #50fa7b, #8be9fd)" : "#6272a4",
+                              background: req.detectedPackage ? "linear-gradient(90deg, #10b981, #3b82f6)" : "#94a3b8",
                               borderRadius: 4,
                             }}
                           />
@@ -986,21 +1026,21 @@ export default function F12NetworkInspector({
                             style={{
                               padding: "2px 8px",
                               borderRadius: 4,
-                              background: "rgba(80, 250, 123, 0.15)",
-                              color: "#50fa7b",
+                              background: "rgba(16, 185, 129, 0.12)",
+                              color: "#059669",
                               fontWeight: 700,
                               fontSize: 11,
                               display: "inline-flex",
                               alignItems: "center",
                               gap: 4,
-                              border: "1px solid rgba(80, 250, 123, 0.3)",
+                              border: "1px solid rgba(16, 185, 129, 0.3)",
                             }}
                           >
                             <span>{req.detectedPackage.name}</span>
-                            <span style={{ color: "#8be9fd" }}>@{req.detectedPackage.version}</span>
+                            <span style={{ color: "#0284c7" }}>@{req.detectedPackage.version}</span>
                           </span>
                         ) : (
-                          <span style={{ color: "#6272a4", fontSize: 11 }}>—</span>
+                          <span style={{ color: "#94a3b8", fontSize: 11 }}>—</span>
                         )}
                       </td>
                     </tr>
@@ -1015,69 +1055,69 @@ export default function F12NetworkInspector({
         {selectedRequest && (
           <div
             style={{
-              background: "#21222c",
-              borderLeft: "1px solid #44475a",
+              background: "#f8fafc",
+              borderLeft: "1px solid #e2e8f0",
               padding: 14,
               overflowY: "auto",
               maxHeight: 420,
               fontSize: 11.5,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, borderBottom: "1px solid #383a48", paddingBottom: 6 }}>
-              <div style={{ fontWeight: 800, color: "#8be9fd", fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>
+              <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 12 }}>
                 Chi Tiết Yêu Cầu Mạng F12
               </div>
               <button
                 onClick={() => setSelectedRequest(null)}
-                style={{ background: "transparent", border: "none", color: "#6272a4", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+                style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
               >
                 Đóng
               </button>
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, color: "#ff79c6", marginBottom: 4 }}>Thông tin chung:</div>
-              <div style={{ wordBreak: "break-all", color: "#f8f8f2" }}>
+              <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>Thông tin chung:</div>
+              <div style={{ wordBreak: "break-all", color: "#334155" }}>
                 <b>URL:</b> {selectedRequest.url}
               </div>
-              <div style={{ color: "#f8f8f2", marginTop: 2 }}>
-                <b>Mã HTTP:</b> <span style={{ color: "#50fa7b", fontWeight: 700 }}>{selectedRequest.status} {selectedRequest.statusText}</span>
+              <div style={{ color: "#334155", marginTop: 2 }}>
+                <b>Mã HTTP:</b> <span style={{ color: "#16a34a", fontWeight: 700 }}>{selectedRequest.status} {selectedRequest.statusText}</span>
               </div>
-              <div style={{ color: "#f8f8f2", marginTop: 2 }}>
+              <div style={{ color: "#334155", marginTop: 2 }}>
                 <b>Kích thước:</b> {(selectedRequest.sizeBytes / 1024).toFixed(2)} KB - {selectedRequest.sizeBytes} bytes
               </div>
-              <div style={{ color: "#f8f8f2", marginTop: 2 }}>
+              <div style={{ color: "#334155", marginTop: 2 }}>
                 <b>Thời gian truyền tải:</b> {selectedRequest.durationMs} ms
               </div>
-              <div style={{ color: "#f8f8f2", marginTop: 2 }}>
+              <div style={{ color: "#334155", marginTop: 2 }}>
                 <b>Nguồn khởi tạo:</b> {selectedRequest.initiator}
               </div>
-              <div style={{ color: "#f8f8f2", marginTop: 2 }}>
+              <div style={{ color: "#334155", marginTop: 2 }}>
                 <b>Chế độ bắt:</b> {selectedRequest.isLiveBrowser ? "Live W3C Resource Timing" : "HTTP Probe"}
               </div>
             </div>
 
-            <div style={{ background: "#282a36", padding: 10, borderRadius: 6, border: "1px solid #44475a" }}>
-              <div style={{ fontWeight: 700, color: "#50fa7b", marginBottom: 6 }}>
+            <div style={{ background: "#ffffff", padding: 10, borderRadius: 6, border: "1px solid #e2e8f0" }}>
+              <div style={{ fontWeight: 700, color: "#059669", marginBottom: 6 }}>
                 Bóc Tách Thư Viện Runtime SBOM:
               </div>
               {selectedRequest.detectedPackage ? (
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
                     {selectedRequest.detectedPackage.name}
                   </div>
-                  <div style={{ color: "#8be9fd", marginTop: 2 }}>
+                  <div style={{ color: "#0284c7", marginTop: 2 }}>
                     Phiên bản: <b>v{selectedRequest.detectedPackage.version}</b>
                   </div>
-                  <div style={{ color: "#f1fa8c", marginTop: 2 }}>
+                  <div style={{ color: "#d97706", marginTop: 2 }}>
                     Nguồn nạp: {selectedRequest.detectedPackage.source}
                   </div>
-                  <div style={{ fontSize: 11, color: "#50fa7b", marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: "#059669", marginTop: 6 }}>
                     Đã nhận diện và liên kết vào danh mục đối sánh Runtime.
                   </div>
                 </div>
               ) : (
-                <div style={{ color: "#6272a4" }}>
+                <div style={{ color: "#94a3b8" }}>
                   Tài nguyên này chưa được nhận diện thành package độc lập.
                 </div>
               )}
@@ -1089,14 +1129,14 @@ export default function F12NetworkInspector({
       {/* Footer bar */}
       <div
         style={{
-          background: "#282a36",
-          borderTop: "1px solid #383a48",
+          background: "#f8fafc",
+          borderTop: "1px solid #e2e8f0",
           padding: "6px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           fontSize: 11,
-          color: "#8be9fd",
+          color: "#475569",
           flexWrap: "wrap",
           gap: 10,
         }}
@@ -1105,11 +1145,11 @@ export default function F12NetworkInspector({
           <span><b>{filteredRequests.length}</b> requests</span>
           <span><b>{(totalTransferredBytes / 1024).toFixed(1)} KB</b> transferred</span>
           <span>Finish: <b>{Math.max(...filteredRequests.map((r) => r.durationMs), 0)} ms</b></span>
-          <span style={{ color: "#50fa7b", fontWeight: 700 }}>
+          <span style={{ color: "#059669", fontWeight: 700 }}>
             <b>{detectedPackagesCount}</b> thư viện Runtime phát hiện
           </span>
         </div>
-        <div style={{ color: "#6272a4", fontSize: 10.5 }}>
+        <div style={{ color: "#94a3b8", fontSize: 10.5 }}>
           Cơ chế: W3C Resource Timing API và Chromium Performance Ledger
         </div>
       </div>
