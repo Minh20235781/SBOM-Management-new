@@ -157,6 +157,3 @@ npm run dev
    * Nhấn **"Bắt đầu thu thập & Đối soát"**.
 5. **Bước 5 (Quan sát kết quả)**: Theo dõi luồng F12 Inspector trực tiếp qua SSE và xem bảng phân loại chi tiết 4 trạng thái, sau đó xuất báo cáo định dạng JSON hoặc CSV.
 
----
-*Tài liệu thuộc Đồ án Tốt nghiệp 2 (GR2) - Đại học Bách khoa Hà Nội.*
-
