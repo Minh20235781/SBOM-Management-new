@@ -4,6 +4,8 @@ gnn-training/.venv312/
 
 # --- Java / Maven ---
 demo/target/
+demo/trivy-cache/
+trivy-cache/
 *.class
 *.log
 
