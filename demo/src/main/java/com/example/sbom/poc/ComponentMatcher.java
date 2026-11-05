@@ -76,27 +76,43 @@ public final class ComponentMatcher {
                 continue;
             }
 
-            // Nhiều URL cùng package: ghi nhận từng bằng chứng.
+            // Nhiều URL cùng package: tổng hợp số lần xuất hiện và khử trùng lặp
+            Map<String, Integer> candidateOccurrences = new LinkedHashMap<>();
+            Map<String, EnrichedResource> uniqueCandidates = new LinkedHashMap<>();
+
             for (EnrichedResource item : candidates) {
                 matchedRuntimeIds.add(item.resource().resourceId());
+                String runtimeVersion = item.id().packageVersion();
+                String uniqueKey = (item.resource().url() != null ? item.resource().url() : "")
+                        + "::" + (runtimeVersion != null ? runtimeVersion : "");
+                
+                candidateOccurrences.put(uniqueKey, candidateOccurrences.getOrDefault(uniqueKey, 0) + 1);
+                uniqueCandidates.putIfAbsent(uniqueKey, item);
+            }
+
+            for (Map.Entry<String, EnrichedResource> entry : uniqueCandidates.entrySet()) {
+                EnrichedResource item = entry.getValue();
+                int count = candidateOccurrences.getOrDefault(entry.getKey(), 1);
 
                 String runtimeVersion = item.id().packageVersion();
                 String versionStatus = compareVersion(staticVersion, runtimeVersion);
 
                 String status;
                 String evidence;
+                String suffixCount = count > 1 ? " (ghi nhận qua " + count + " yêu cầu mạng)" : "";
+
                 switch (versionStatus) {
                     case "VERSION_MATCH" -> {
                         status = "MATCHED";
-                        evidence = "Tên và phiên bản khớp theo thông tin nhận diện từ SBOM và URL runtime.";
+                        evidence = "Tên và phiên bản khớp theo thông tin nhận diện từ SBOM và URL runtime" + suffixCount + ".";
                     }
                     case "VERSION_MISMATCH" -> {
                         status = "UNRESOLVED";
-                        evidence = "Tên package khớp nhưng phiên bản khác nhau; cần kiểm tra nguồn dữ liệu và phạm vi quét.";
+                        evidence = "Tên package khớp nhưng phiên bản khác nhau; cần kiểm tra nguồn dữ liệu và phạm vi quét" + suffixCount + ".";
                     }
                     default -> {
                         status = "UNRESOLVED";
-                        evidence = "Tên package khớp nhưng chưa đủ thông tin để xác nhận phiên bản.";
+                        evidence = "Tên package khớp nhưng chưa đủ thông tin để xác nhận phiên bản" + suffixCount + ".";
                     }
                 }
 
@@ -112,13 +128,21 @@ public final class ComponentMatcher {
             }
         }
 
-        // Xử lý các tài nguyên runtime chưa được ghép với SBOM.
+        // Xử lý các tài nguyên runtime chưa được ghép với SBOM (khử trùng lặp theo URL/Package).
+        Set<String> seenUnmatchedKeys = new HashSet<>();
         for (EnrichedResource item : enriched) {
             if (matchedRuntimeIds.contains(item.resource().resourceId())) {
                 continue;
             }
 
             String runtimeName = item.id().packageName();
+            String uniqueUnmatchedKey = (runtimeName != null ? runtimeName : "")
+                    + "::" + (item.resource().url() != null ? item.resource().url() : "");
+            if (seenUnmatchedKeys.contains(uniqueUnmatchedKey)) {
+                continue;
+            }
+            seenUnmatchedKeys.add(uniqueUnmatchedKey);
+
             String status;
             String evidence;
 

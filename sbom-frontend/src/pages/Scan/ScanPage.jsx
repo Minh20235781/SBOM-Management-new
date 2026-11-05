@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/shared/PageHeader";
 import DataTable from "../../components/shared/DataTable";
@@ -7,6 +7,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import ErrorBanner from "../../components/shared/ErrorBanner";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
+import ProgressBar from "../../components/shared/ProgressBar";
 import { Field, Input } from "../../components/shared/Form";
 import legacyApi from "../../api/legacyApi";
 import projectApi from "../../api/projectApi";
@@ -29,6 +30,24 @@ export default function ScanPage() {
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(true);
 
+    const [progress, setProgress] = useState(0);
+    const [statusText, setStatusText] = useState("");
+    const [stepIndex, setStepIndex] = useState(0);
+    const progressTimerRef = useRef(null);
+
+    const scanSteps = [
+        "Khởi tạo & Clone Git",
+        "Chạy Trivy quét Manifest",
+        "Trích xuất CycloneDX & CVE",
+        "Lưu trữ & Đánh giá rủi ro",
+    ];
+
+    useEffect(() => {
+        return () => {
+            if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        };
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -50,13 +69,48 @@ export default function ScanPage() {
         setScanning(true);
         setError(null);
         setResult(null);
+        setProgress(5);
+        setStepIndex(0);
+        setStatusText("Khởi tạo môi trường quét và chuẩn bị kết nối kho Git...");
+
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+
+        // Giả lập tiến trình mượt mà qua các giai đoạn quét thực tế của Trivy
+        progressTimerRef.current = setInterval(() => {
+            setProgress((prev) => {
+                if (prev < 25) {
+                    setStepIndex(0);
+                    setStatusText("Đang kết nối và sao chép mã nguồn từ repository Git...");
+                    return prev + 2;
+                } else if (prev < 55) {
+                    setStepIndex(1);
+                    setStatusText("Trivy đang phân tích các file cấu hình manifest và cây phụ thuộc...");
+                    return prev + 1.5;
+                } else if (prev < 80) {
+                    setStepIndex(2);
+                    setStatusText("Trích xuất thông tin linh kiện CycloneDX và đối soát cơ sở dữ liệu lỗ hổng CVE...");
+                    return prev + 1;
+                } else if (prev < 92) {
+                    setStepIndex(3);
+                    setStatusText("Đang tổng hợp thông tin, chuẩn hóa dữ liệu và lưu vào cơ sở dữ liệu...");
+                    return prev + 0.6;
+                }
+                return prev;
+            });
+        }, 350);
+
         try {
             const msg = await legacyApi.scanAndSave(repoUrl.trim());
+            clearInterval(progressTimerRef.current);
+            setProgress(100);
+            setStepIndex(3);
+            setStatusText("Quét mã nguồn và trích xuất SBOM thành công!");
             setResult({ ok: true, message: typeof msg === "string" ? msg : "Scan completed." });
             try {
                 setHistory(safeArray(await projectApi.list()));
             } catch { /* non-fatal */ }
         } catch (err) {
+            clearInterval(progressTimerRef.current);
             setError(err?.response?.data || err?.message || "Scan failed");
         } finally {
             setScanning(false);
@@ -149,6 +203,17 @@ export default function ScanPage() {
                 </form>
 
                 <ErrorBanner error={error} />
+
+                {(scanning || progress > 0) && !error && (
+                    <ProgressBar
+                        progress={progress}
+                        statusText={statusText}
+                        stepText={`Bước ${Math.min(stepIndex + 1, scanSteps.length)}/${scanSteps.length}`}
+                        steps={scanSteps}
+                        currentStepIndex={stepIndex}
+                        color="#2563eb"
+                    />
+                )}
 
                 {result && (
                     <div

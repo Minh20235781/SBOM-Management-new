@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import PageHeader from "../../components/shared/PageHeader";
 import Spinner from "../../components/shared/Spinner";
 import ErrorBanner from "../../components/shared/ErrorBanner";
+import ProgressBar from "../../components/shared/ProgressBar";
 import { matchPoc, exportPocCsv, generateRuntimeSbom } from "../../api/reconciliationApi";
 import F12NetworkInspector, {
   captureRealBrowserNetworkEntries,
@@ -53,6 +54,39 @@ export default function ReconciliationPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const fileInputRef1 = useRef(null);
+
+  // Tiến trình chạy link web (Nguồn 2)
+  const [runtimeProgress, setRuntimeProgress] = useState(0);
+  const [runtimeStatusText, setRuntimeStatusText] = useState("");
+  const [runtimeStepIndex, setRuntimeStepIndex] = useState(0);
+  const runtimeTimerRef = useRef(null);
+
+  const runtimeSteps = [
+    "Khởi chạy Chromium CDP",
+    "Lắng nghe lưu lượng F12",
+    "Bóc tách bundle & RAM V8",
+    "Đóng gói CycloneDX Runtime",
+  ];
+
+  // Tiến trình thực hiện đối sánh (Nguồn 1 vs Nguồn 2)
+  const [matchProgress, setMatchProgress] = useState(0);
+  const [matchStatusText, setMatchStatusText] = useState("");
+  const [matchStepIndex, setMatchStepIndex] = useState(0);
+  const matchTimerRef = useRef(null);
+
+  const matchSteps = [
+    "Nạp SBOM Tĩnh",
+    "Đọc Runtime HAR",
+    "Khử trùng lặp & So khớp",
+    "Tổng hợp Báo cáo 4 trạng thái",
+  ];
+
+  useEffect(() => {
+    return () => {
+      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+    };
+  }, []);
 
   const handleSource1FileChange = (e) => {
     const file = e.target.files?.[0];
@@ -106,6 +140,33 @@ export default function ReconciliationPage() {
     try {
       setIsRunningScan(true);
       setError(null);
+      setRuntimeProgress(10);
+      setRuntimeStepIndex(0);
+      setRuntimeStatusText("Khởi chạy Chromium headless và thiết lập Chrome DevTools Protocol...");
+
+      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
+      runtimeTimerRef.current = setInterval(() => {
+        setRuntimeProgress((prev) => {
+          if (prev < 25) {
+            setRuntimeStepIndex(0);
+            setRuntimeStatusText("Khởi chạy Chromium CDP và thiết lập môi trường thu thập...");
+            return prev + 3;
+          } else if (prev < 55) {
+            setRuntimeStepIndex(1);
+            setRuntimeStatusText("Truy cập trang web mục tiêu & bắt lưu lượng mạng F12...");
+            return prev + 2.2;
+          } else if (prev < 82) {
+            setRuntimeStepIndex(2);
+            setRuntimeStatusText("Giải mã bundle JavaScript & bóc tách các package trong RAM V8...");
+            return prev + 1.6;
+          } else if (prev < 93) {
+            setRuntimeStepIndex(3);
+            setRuntimeStatusText("Đóng gói dữ liệu bằng chứng và chuẩn bị xuất Runtime SBOM...");
+            return prev + 0.8;
+          }
+          return prev;
+        });
+      }, 250);
 
       // Thu thập các network request thực tế từ browser
       let browserEntries = [];
@@ -153,6 +214,11 @@ export default function ReconciliationPage() {
         };
       });
 
+      clearInterval(runtimeTimerRef.current);
+      setRuntimeProgress(100);
+      setRuntimeStepIndex(3);
+      setRuntimeStatusText("Thu thập và đóng gói Runtime SBOM CycloneDX thành công!");
+
       setTargetWebRequests(formattedNet);
       setRuntimeSbomJson(generatedSbomJson);
       setRuntimePackageCount(detectedPackages.length);
@@ -174,6 +240,7 @@ export default function ReconciliationPage() {
 
       toast.success("Đã hoàn thành thu thập SBOM runtime từ F12 và Engine v8");
     } catch (err) {
+      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
       setError(err.message || "Lỗi khi quét runtime web");
       toast.error("Lỗi khi quét runtime web: " + err.message);
     } finally {
@@ -218,15 +285,48 @@ export default function ReconciliationPage() {
     try {
       setLoading(true);
       setError(null);
+      setMatchProgress(12);
+      setMatchStepIndex(0);
+      setMatchStatusText("Đang nạp và kiểm tra dữ liệu SBOM Tĩnh (Nguồn 1)...");
+
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+      matchTimerRef.current = setInterval(() => {
+        setMatchProgress((prev) => {
+          if (prev < 30) {
+            setMatchStepIndex(0);
+            setMatchStatusText("Phân tích Package URL và danh mục linh kiện trong SBOM tĩnh...");
+            return prev + 3.5;
+          } else if (prev < 60) {
+            setMatchStepIndex(1);
+            setMatchStatusText("Đọc dữ liệu Runtime HAR và giải mã các URL tài nguyên...");
+            return prev + 2.8;
+          } else if (prev < 85) {
+            setMatchStepIndex(2);
+            setMatchStatusText("Thực hiện đối soát chéo, khử trùng lặp và phân loại 4 trạng thái...");
+            return prev + 2;
+          } else if (prev < 94) {
+            setMatchStepIndex(3);
+            setMatchStatusText("Tổng hợp ma trận đối soát và tính toán số liệu thống kê...");
+            return prev + 0.8;
+          }
+          return prev;
+        });
+      }, 200);
 
       const res = await matchPoc({
         sbomContent: source1Content,
         harContent: runtimeSbomJson,
       });
 
+      clearInterval(matchTimerRef.current);
+      setMatchProgress(100);
+      setMatchStepIndex(3);
+      setMatchStatusText("Đối sánh SBOM tĩnh và Runtime hoàn tất thành công!");
+
       setMatchReport(res);
       toast.success("Đối sánh hoàn tất");
     } catch (err) {
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
       setError(err.message || "Lỗi khi thực hiện đối sánh");
       toast.error("Đối sánh thất bại: " + err.message);
     } finally {
@@ -535,6 +635,19 @@ export default function ReconciliationPage() {
                 {isRunningScan ? "Đang Chạy..." : "Run"}
               </button>
             </div>
+
+            {/* Thanh tiến trình chạy link web Nguồn 2 */}
+            {(isRunningScan || (runtimeProgress > 0 && runtimeProgress < 100)) && (
+              <ProgressBar
+                progress={runtimeProgress}
+                statusText={runtimeStatusText}
+                stepText={`Bước ${Math.min(runtimeStepIndex + 1, runtimeSteps.length)}/${runtimeSteps.length}`}
+                steps={runtimeSteps}
+                currentStepIndex={runtimeStepIndex}
+                color="#16a34a"
+                style={{ padding: "12px 16px", margin: "0 0 12px 0" }}
+              />
+            )}
           </div>
 
           {/* TRẠNG THÁI RUNTIME SBOM SAU KHI QUÉT */}
@@ -625,6 +738,20 @@ export default function ReconciliationPage() {
           </div>
         )}
       </div>
+
+      {/* Thanh tiến trình đối sánh 2 nguồn SBOM */}
+      {(loading || (matchProgress > 0 && matchProgress < 100)) && (
+        <div style={{ maxWidth: 860, margin: "0 auto 24px auto" }}>
+          <ProgressBar
+            progress={matchProgress}
+            statusText={matchStatusText}
+            stepText={`Bước ${Math.min(matchStepIndex + 1, matchSteps.length)}/${matchSteps.length}`}
+            steps={matchSteps}
+            currentStepIndex={matchStepIndex}
+            color="#2563eb"
+          />
+        </div>
+      )}
 
       {/* F12 NETWORK INSPECTOR BẬT TẮT ĐỘNG */}
       {showF12Inspector && (

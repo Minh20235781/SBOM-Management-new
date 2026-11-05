@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   validateAndNormalizeSbomFile,
   validateAndNormalizeSbomJson,
   downloadEnrichedSbom,
 } from "../../api/provenanceApi";
 import { toast } from "../../components/shared/Toaster";
+import ProgressBar from "../../components/shared/ProgressBar";
 
 export default function SbomProvenancePage() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -15,6 +16,24 @@ export default function SbomProvenancePage() {
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [rawJsonMode, setRawJsonMode] = useState(false);
   const [jsonInput, setJsonInput] = useState("");
+
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("");
+  const [stepIndex, setStepIndex] = useState(0);
+  const progressTimerRef = useRef(null);
+
+  const provenanceSteps = [
+    "Mã băm SHA-256 FIPS-180-4",
+    "Chuẩn hóa PURL (RFC)",
+    "Đối chiếu npm & Maven API",
+    "Đóng gói CycloneDX pedigree",
+  ];
+
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+    };
+  }, []);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -36,6 +55,35 @@ export default function SbomProvenancePage() {
     }
 
     setLoading(true);
+    setProgress(8);
+    setStepIndex(0);
+    setStatusText("Bắt đầu đọc tệp SBOM và tính toán mã băm FIPS-180-4 SHA-256...");
+
+    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+
+    progressTimerRef.current = setInterval(() => {
+      setProgress((prev) => {
+        if (prev < 28) {
+          setStepIndex(0);
+          setStatusText("Kiểm định mã băm toàn vẹn hệ thống SHA-256 và kiểm tra cờ Gatekeeping...");
+          return prev + 3;
+        } else if (prev < 55) {
+          setStepIndex(1);
+          setStatusText("Chuẩn hóa Package URL (RFC PURL) cho toàn bộ linh kiện...");
+          return prev + 2.5;
+        } else if (prev < 82) {
+          setStepIndex(2);
+          setStatusText("Đối chiếu bất đồng bộ kho lưu trữ chính thức npm Registry và Maven Central...");
+          return prev + 1.8;
+        } else if (prev < 94) {
+          setStepIndex(3);
+          setStatusText("Truy xuất Git Commit SHA và đóng gói trường pedigree chuẩn CycloneDX...");
+          return prev + 0.8;
+        }
+        return prev;
+      });
+    }, 280);
+
     try {
       let data;
       if (rawJsonMode) {
@@ -44,6 +92,10 @@ export default function SbomProvenancePage() {
         data = await validateAndNormalizeSbomFile(selectedFile);
       }
 
+      clearInterval(progressTimerRef.current);
+      setProgress(100);
+      setStepIndex(3);
+      setStatusText("Xác thực nguồn gốc và đóng gói phả hệ pedigree thành công!");
       setResult(data);
 
       if (data.alreadyNormalized) {
@@ -52,6 +104,7 @@ export default function SbomProvenancePage() {
         toast.success(data.message);
       }
     } catch (err) {
+      clearInterval(progressTimerRef.current);
       toast.error(err.message || "Xảy ra lỗi trong quá trình xử lý SBOM");
     } finally {
       setLoading(false);
@@ -245,6 +298,18 @@ export default function SbomProvenancePage() {
           <span>Định dạng hỗ trợ: CycloneDX 1.4-1.6 JSON, SPDX 2.3 JSON</span>
         </div>
       </div>
+
+      {/* Progress Bar for Provenance & Normalization */}
+      {(loading || (progress > 0 && progress < 100)) && (
+        <ProgressBar
+          progress={progress}
+          statusText={statusText}
+          stepText={`Giai đoạn ${Math.min(stepIndex + 1, provenanceSteps.length)}/${provenanceSteps.length}`}
+          steps={provenanceSteps}
+          currentStepIndex={stepIndex}
+          color="#2563eb"
+        />
+      )}
 
       {/* Cảnh báo nếu file đã chuẩn hóa */}
       {result?.alreadyNormalized && (
