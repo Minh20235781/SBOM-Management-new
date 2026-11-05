@@ -1,10 +1,9 @@
 # TÀI LIỆU POC: XÁC THỰC NGUỒN GỐC VÀ ĐỐI SOÁT SBOM ĐA NGUỒN (TĨNH VS. RUNTIME)
 
-> **Dự án**: Nền tảng phân tích rủi ro và quản lý SBOM theo quy trình DevOps (GR2)  
-> **Sinh viên thực hiện**: Nguyễn Nhật Minh (MSSV: 20235781)  
-> **Giảng viên hướng dẫn**: TS. Trịnh Tuấn Đạt  
-> **Đơn vị đào tạo**: Trường Công nghệ Thông tin & Truyền thông - Đại học Bách khoa Hà Nội (HUST)  
-> **Trạng thái thực thi**: Đã lập trình hoàn thiện, kiểm nghiệm thực tế và tích hợp toàn diện trên giao diện web & backend Spring Boot.
+> **Dự án**: Nền tảng phân tích rủi ro và quản lý SBOM theo quy trình DevOps<br/>
+> **Sinh viên thực hiện**: Nguyễn Nhật Minh (MSSV: 20235781)<br/>
+> **Giảng viên hướng dẫn**: TS. Vũ Thị Hương Giang<br/>
+> **Đơn vị đào tạo**: Trường Công nghệ Thông tin & Truyền thông - Đại học Bách khoa Hà Nội
 
 ---
 
@@ -160,3 +159,4 @@ npm run dev
 
 ---
 *Tài liệu thuộc Đồ án Tốt nghiệp 2 (GR2) - Đại học Bách khoa Hà Nội.*
+

@@ -1,7 +1,8 @@
 # Nền Tảng Phân Tích Rủi Ro và Quản Lý SBOM Trong Quy Trình DevOps (GR2)
 
-> **Đồ Án Tốt Nghiệp 2 (GR2)**: *Xây dựng website quản lý thông tin của các hệ thống theo quy trình DevOps dựa trên SBOM - Nguồn gốc và chính sách*  
-> **Sinh viên thực hiện**: Nguyễn Nhật Minh (MSSV: 20235781)  
+> **Đồ Án Tốt Nghiệp 2 (GR2)**: *Xây dựng website quản lý thông tin của các hệ thống theo quy trình DevOps dựa trên SBOM - Nguồn gốc và chính sách*<br/>
+> **Sinh viên thực hiện**: Nguyễn Nhật Minh (MSSV: 20235781)<br/>
+> **Giảng viên hướng dẫn**: TS. Vũ Thị Hương Giang<br/>
 > **Đơn vị đào tạo**: Trường Công nghệ Thông tin & Truyền thông - Đại học Bách khoa Hà Nội (HUST)
 
 ---
