@@ -52,67 +52,56 @@ const PACKAGE_FINGERPRINTS = [
   {
     name: 'react',
     test: (code) => code.includes('React.createElement') || code.includes('react.element') || code.includes('__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED') || (code.includes('jsxRuntime') && code.includes('react')),
-    versionRegex: /version[:=]\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'react-dom',
     test: (code) => code.includes('react-dom') || code.includes('createRoot') || code.includes('hydrateRoot') || code.includes('ReactDOM'),
-    versionRegex: /version[:=]\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'next',
     test: (code, url) => url.includes('/_next/') || code.includes('__NEXT_DATA__') || code.includes('next/router') || code.includes('next/dist/'),
-    versionRegex: /next[\\/]package\.json.*?version["']:\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'axios',
     test: (code, url) => url.includes('axios') || code.includes('AxiosError') || code.includes('isAxiosError') || (code.includes('axios') && code.includes('createInstance')),
-    versionRegex: /axios.*?version["']:\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: '@supabase/supabase-js',
     test: (code, url) => url.includes('supabase') || code.includes('SupabaseClient') || code.includes('@supabase/gotrue-js') || code.includes('supabase.auth'),
-    versionRegex: /supabase-js.*?version["']:\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'lucide-react',
     test: (code, url) => url.includes('lucide') || code.includes('createLucideIcon') || code.includes('LucideIcon'),
-    versionRegex: /lucide-react.*?version["']:\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: '@tanstack/react-query',
     test: (code, url) => url.includes('query') && (code.includes('QueryClient') || code.includes('useQuery') || code.includes('@tanstack/react-query')),
-    versionRegex: /react-query.*?version["']:\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'lodash',
     test: (code, url) => url.includes('lodash') || (code.includes('lodash') && code.includes('_.isObject')),
-    versionRegex: /lodash.*?VERSION\s*=\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   },
   {
     name: 'clsx',
     test: (code) => code.includes('clsx') && code.includes('toVal'),
-    versionRegex: null,
     defaultVersion: null
   },
   {
     name: 'tailwind-merge',
     test: (code) => code.includes('twMerge') || code.includes('tailwind-merge'),
-    versionRegex: null,
     defaultVersion: null
   },
   {
     name: 'xlsx',
     test: (code, url) => url.includes('xlsx') || code.includes('XLSX.read') || code.includes('SheetJS'),
-    versionRegex: /XLSX\.version\s*=\s*["'](\d+\.\d+\.\d+[^"']*)["']/i,
     defaultVersion: null
   }
 ];
@@ -122,7 +111,11 @@ const PACKAGE_FINGERPRINTS = [
  */
 function identifyFromCdnUrl(url) {
   if (!url) return null;
-  const match = url.match(/\/(?:npm|gh|pkg)\/(@?[^@\/]+(?:[\/][^@\/]+)?)@([^\/]+)/i);
+  let address;
+  try { address = new URL(url); } catch { return null; }
+  const prefix = { 'cdn.jsdelivr.net': '/npm/', 'unpkg.com': '/' }[address.hostname];
+  if (!prefix || !address.pathname.startsWith(prefix)) return null;
+  const match = address.pathname.slice(prefix.length).match(/^((?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+)@(\d+\.\d+\.\d+(?:[-+][0-9a-z.-]+)?)(?:\/|$)/i);
   if (match) {
     return {
       name: match[1],
@@ -184,20 +177,23 @@ async function runCdpScan(targetUrl, options = {}) {
         method: e.request.method,
         initiator: e.initiator ? e.initiator.type : 'other',
         timestamp: e.wallTime ? Math.round(e.wallTime * 1000) : Date.now(),
-        headers: e.request.headers || {},
+        startedAt: e.timestamp,
         status: null,
         mimeType: null,
         type: null,
         sizeBytes: 0,
-        latencyMs: 0,
+        latencyMs: null,
         contentHash: ''
       });
     });
 
     cdp.on('Network.responseReceived', (e) => {
-      const existing = networkRequests.find(r => r.requestId === e.requestId);
+      const existing = networkRequests.findLast(r => r.requestId === e.requestId);
       if (existing) {
         existing.status = e.response.status;
+        if (!e.response.fromDiskCache && !e.response.fromServiceWorker) {
+          existing.backendRequestId = Object.entries(e.response.headers || {}).find(([key]) => key.toLowerCase() === 'x-sbom-request-id')?.[1];
+        }
         existing.mimeType = e.response.mimeType;
         existing.type = e.type ? e.type.toLowerCase() : 'other';
         existing.fromCache = !!e.response.fromDiskCache || !!e.response.fromServiceWorker;
@@ -206,14 +202,10 @@ async function runCdpScan(targetUrl, options = {}) {
     });
 
     cdp.on('Network.loadingFinished', (e) => {
-      const existing = networkRequests.find(r => r.requestId === e.requestId);
+      const existing = networkRequests.findLast(r => r.requestId === e.requestId);
       if (existing) {
-        existing.sizeBytes = e.encodedDataLength > 0 ? e.encodedDataLength : 12400;
-        if (e.finishTime && existing.timestamp) {
-          existing.latencyMs = Math.max(5, Math.round((e.finishTime * 1000) - existing.timestamp));
-        } else {
-          existing.latencyMs = 18;
-        }
+        existing.sizeBytes = e.encodedDataLength ?? null;
+        existing.latencyMs = Math.max(0, Math.round((e.timestamp - existing.startedAt) * 1000));
       }
     });
 
@@ -236,14 +228,13 @@ async function runCdpScan(targetUrl, options = {}) {
 
     // 2. Mở URL mục tiêu và đợi nạp mạng hoàn tất
     console.error(`[CDP Instrumentation] Đang tải trang ${targetUrl}...`);
-    try {
-      await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: timeoutMs });
-    } catch (navErr) {
-      console.error(`[CDP Instrumentation] Điều hướng có cảnh báo (vẫn tiếp tục lấy dữ liệu): ${navErr.message}`);
+    const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    if (!response || response.status() >= 400) {
+      throw new Error(`Không tải được ứng dụng mục tiêu (HTTP ${response?.status() ?? 'không rõ'}).`);
     }
 
     // Cho phép trang web thực thi các script khởi tạo trong 2 giây
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, options.observeMs ?? 2000));
 
     // 3. Thu thập Coverage và Memory Metrics
     console.error(`[CDP Instrumentation] Thu thập Execution Coverage và Performance metrics...`);
@@ -348,25 +339,19 @@ async function runCdpScan(targetUrl, options = {}) {
         PACKAGE_FINGERPRINTS.forEach(pkg => {
           if (pkg.test(scriptSource, script.url || '')) {
             const key = pkg.name.toLowerCase();
-            let ver = 'VERSION_UNKNOWN';
-            if (pkg.versionRegex) {
-              const m = scriptSource.match(pkg.versionRegex);
-              if (m && m[1]) ver = m[1];
-            }
+            const ver = 'VERSION_UNKNOWN';
 
             if (!identifiedPackages.has(key)) {
               identifiedPackages.set(key, {
                 name: pkg.name,
                 version: ver,
-                confidence: ver !== 'VERSION_UNKNOWN' ? 'HIGH' : (script.hasExecutionEvidence ? 'MEDIUM' : 'LOW'),
+                confidence: script.hasExecutionEvidence ? 'MEDIUM' : 'LOW',
                 identificationMethod: 'BUNDLE_CODE_FINGERPRINT',
                 hasExecutionEvidence: script.hasExecutionEvidence,
                 evidence: `Nhận diện từ chữ ký mã lệnh trong script ${script.url ? path.basename(script.url.split('?')[0]) : 'inline'} (Hash: ${script.contentHash.substring(0, 10)})`,
                 scriptUrl: script.url,
                 scriptHash: script.contentHash
               });
-            } else if (ver !== 'VERSION_UNKNOWN' && identifiedPackages.get(key).version === 'VERSION_UNKNOWN') {
-              identifiedPackages.get(key).version = ver;
             }
           }
         });
@@ -375,28 +360,22 @@ async function runCdpScan(targetUrl, options = {}) {
 
     // C. Nhận diện từ Network CDN URLs
     networkRequests.forEach(req => {
-      const cdn = identifyFromCdnUrl(req.url);
+      const cdn = req.status >= 200 && req.status < 300 ? identifyFromCdnUrl(req.url) : null;
       if (cdn) {
-        const key = cdn.name.toLowerCase();
+        const key = cdn.name.toLowerCase() + '@' + cdn.version;
+        const fingerprint = identifiedPackages.get(cdn.name.toLowerCase());
+        if (fingerprint?.scriptUrl === req.url) identifiedPackages.delete(cdn.name.toLowerCase());
         if (!identifiedPackages.has(key)) {
           identifiedPackages.set(key, {
             name: cdn.name,
             version: cdn.version,
             confidence: cdn.confidence,
             identificationMethod: cdn.method,
-            hasExecutionEvidence: true,
+            hasExecutionEvidence: Array.from(scriptsParsed.values()).some((script) => script.url === req.url && script.hasExecutionEvidence),
             evidence: cdn.evidence,
             scriptUrl: req.url,
             scriptHash: req.contentHash || ''
           });
-        } else {
-          const item = identifiedPackages.get(key);
-          if (item.version === 'VERSION_UNKNOWN' || !item.version) {
-            item.version = cdn.version;
-            item.confidence = cdn.confidence;
-            item.identificationMethod = cdn.method;
-            item.evidence = `${item.evidence}; ${cdn.evidence}`;
-          }
         }
       }
     });
@@ -415,16 +394,16 @@ async function runCdpScan(targetUrl, options = {}) {
         url: u,
         fileName: fName || 'index.html',
         type: r.type || (u.endsWith('.css') ? 'stylesheet' : (u.endsWith('.js') ? 'script' : 'fetch')),
-        status: r.status || 200,
-        statusText: 'OK',
-        sizeBytes: r.sizeBytes || 18500,
-        durationMs: r.latencyMs || 20,
-        startTimeMs: idx * 12,
+        status: r.status,
+        sizeBytes: r.sizeBytes,
+        durationMs: r.latencyMs,
+        startTimeMs: Math.max(0, r.timestamp - startTime),
         initiator: r.initiator || 'script',
+        backendRequestId: r.backendRequestId,
         detectedPackage: Array.from(identifiedPackages.values()).find(p => p.scriptUrl === u) || null,
         isLiveBrowser: true,
         collectionSource: 'CHROMIUM_CDP',
-        timestamp: new Date().toLocaleTimeString()
+        timestamp: new Date(r.timestamp).toISOString()
       };
     });
 
@@ -438,12 +417,13 @@ async function runCdpScan(targetUrl, options = {}) {
         name: p.name,
         version: p.version,
         purl: p.version && p.version !== 'VERSION_UNKNOWN' ? `pkg:npm/${p.name}@${p.version}` : `pkg:npm/${p.name}`,
-        hashes: p.scriptHash ? [{ alg: 'SHA-256', content: p.scriptHash }] : [],
         properties: [
+          ...(p.scriptHash ? [{ name: 'runtime:scriptHash', value: p.scriptHash }] : []),
           { name: 'runtime:confidence', value: p.confidence },
           { name: 'runtime:identificationMethod', value: p.identificationMethod },
           { name: 'runtime:hasExecutionEvidence', value: String(p.hasExecutionEvidence) },
           { name: 'runtime:evidence', value: p.evidence },
+          ...(p.scriptUrl ? [{ name: 'runtime:scriptUrl', value: p.scriptUrl }] : []),
           { name: 'runtime:collectionSource', value: 'CHROMIUM_CDP' }
         ]
       };
@@ -474,6 +454,11 @@ async function runCdpScan(targetUrl, options = {}) {
     };
 
     const auditLog = {
+      observation: {
+        scenario: options.scenario || (headless ? 'Tải trang' : 'Phiên tương tác'),
+        buildId: options.buildId || null,
+        scope: 'Tài nguyên và script quan sát trong phiên CDP của trang.'
+      },
       sessionId: sessionId,
       targetUrl: targetUrl,
       scannedAt: new Date().toISOString(),
@@ -514,7 +499,9 @@ if (require.main === module) {
   const targetUrl = process.argv[2] || 'https://kick-zone-web.vercel.app';
   const outputFile = process.argv[3] || null;
 
-  runCdpScan(targetUrl, { headless: true })
+  const interactive = process.argv.includes('--interactive');
+  runCdpScan(targetUrl, { headless: !interactive, observeMs: interactive ? 60000 : 2000,
+    scenario: process.env.SBOM_SCENARIO, buildId: process.env.SBOM_BUILD_ID })
     .then(result => {
       const jsonStr = JSON.stringify(result, null, 2);
       if (outputFile) {

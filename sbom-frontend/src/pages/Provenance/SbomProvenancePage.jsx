@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import ArtifactCheck from "./ArtifactCheck";
+import { Link } from "react-router-dom";
 import {
   validateAndNormalizeSbomFile,
   validateAndNormalizeSbomJson,
@@ -6,11 +8,14 @@ import {
 } from "../../api/provenanceApi";
 import { toast } from "../../components/shared/Toaster";
 import ProgressBar from "../../components/shared/ProgressBar";
+import { saveNormalizedSbom } from "../../utils/sbomSnapshots";
 
 export default function SbomProvenancePage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [savedSbomId, setSavedSbomId] = useState(null);
+  const [referenceHash, setReferenceHash] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -24,9 +29,9 @@ export default function SbomProvenancePage() {
 
   const provenanceSteps = [
     "Mã băm SHA-256 FIPS-180-4",
-    "Chuẩn hóa PURL (RFC)",
+    "Đọc định danh PURL",
     "Đối chiếu npm & Maven API",
-    "Đóng gói CycloneDX pedigree",
+    "Ghi nguồn tham chiếu",
   ];
 
   useEffect(() => {
@@ -40,6 +45,7 @@ export default function SbomProvenancePage() {
     if (file) {
       setSelectedFile(file);
       setResult(null);
+      setSavedSbomId(null);
       setSelectedComponent(null);
     }
   };
@@ -54,7 +60,10 @@ export default function SbomProvenancePage() {
       return;
     }
 
+    setSelectedComponent(null);
+    setReferenceHash("");
     setLoading(true);
+    setSavedSbomId(null);
     setProgress(8);
     setStepIndex(0);
     setStatusText("Bắt đầu đọc tệp SBOM và tính toán mã băm FIPS-180-4 SHA-256...");
@@ -69,7 +78,7 @@ export default function SbomProvenancePage() {
           return prev + 3;
         } else if (prev < 55) {
           setStepIndex(1);
-          setStatusText("Chuẩn hóa Package URL (RFC PURL) cho toàn bộ linh kiện...");
+          setStatusText("Đọc định danh và phiên bản từ SBOM...");
           return prev + 2.5;
         } else if (prev < 82) {
           setStepIndex(2);
@@ -77,7 +86,7 @@ export default function SbomProvenancePage() {
           return prev + 1.8;
         } else if (prev < 94) {
           setStepIndex(3);
-          setStatusText("Truy xuất Git Commit SHA và đóng gói trường pedigree chuẩn CycloneDX...");
+          setStatusText("Ghi nguồn và checksum bản phát hành...");
           return prev + 0.8;
         }
         return prev;
@@ -95,13 +104,24 @@ export default function SbomProvenancePage() {
       clearInterval(progressTimerRef.current);
       setProgress(100);
       setStepIndex(3);
-      setStatusText("Xác thực nguồn gốc và đóng gói phả hệ pedigree thành công!");
+      setStatusText("Đã hoàn tất đối chiếu bản phát hành.");
       setResult(data);
 
-      if (data.alreadyNormalized) {
-        toast.warning(data.message);
-      } else {
-        toast.success(data.message);
+      if (data.alreadyNormalized) toast("SBOM đã qua chuẩn hóa. Đang thêm vào danh sách đối sánh.");
+      else toast.success(data.message);
+
+      try {
+        const normalized = data.alreadyNormalized
+          ? (rawJsonMode ? jsonInput : await selectedFile.text())
+          : data.enrichedSbomJson;
+        if (normalized) {
+          const original = rawJsonMode ? new Blob([jsonInput], { type: "application/json" }) : selectedFile;
+          const saved = await saveNormalizedSbom(normalized, rawJsonMode ? null : selectedFile.name,
+            data.alreadyNormalized ? null : original);
+          setSavedSbomId(saved.id);
+        }
+      } catch (storageError) {
+        toast.error(`Không lưu được SBOM vào danh sách đối sánh: ${storageError.message}`);
       }
     } catch (err) {
       clearInterval(progressTimerRef.current);
@@ -145,9 +165,15 @@ export default function SbomProvenancePage() {
               Xác Thực Nguồn Gốc và Chuẩn Hóa SBOM Tĩnh
             </h1>
             <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-              Chuẩn hóa định danh PURL, đối chiếu kho lưu trữ chính thức npm Registry / Maven Central, truy xuất mã nguồn GitHub và làm giàu trường pedigree theo CycloneDX
+              Tra đúng phiên bản trên npm hoặc Maven Central, xem nguồn checksum và đối chiếu tệp phát hành.
             </p>
           </div>
+
+          {savedSbomId && (
+            <Link to={`/reconciliation?sbom=${encodeURIComponent(savedSbomId)}`}>
+              Mở SBOM đã lưu ở trang đối sánh
+            </Link>
+          )}
 
           {result?.enrichedSbomJson && (
             <button
@@ -223,7 +249,7 @@ export default function SbomProvenancePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
             <input
               type="file"
-              accept=".json,.xml"
+              accept=".json,application/json"
               onChange={handleFileChange}
               style={{
                 fontSize: 13,
@@ -294,7 +320,7 @@ export default function SbomProvenancePage() {
         )}
 
         <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 16 }}>
-          <span>Cơ chế kiểm soát: Tự động chặn các file SBOM đã được xác thực nguồn gốc hoặc đã có trường pedigree</span>
+          <span>SBOM đã chuẩn hóa có thể được đưa vào danh sách đối sánh từ đây.</span>
           <span>Định dạng hỗ trợ: CycloneDX 1.4-1.6 JSON, SPDX 2.3 JSON</span>
         </div>
       </div>
@@ -327,10 +353,10 @@ export default function SbomProvenancePage() {
             Thông Báo Cơ Chế Kiểm Soát: SBOM Đã Được Chuẩn Hóa Trước Đó
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-            {result.message}
+            {savedSbomId ? "Đã lưu bản SBOM này vào danh sách đối sánh." : result.message}
           </div>
           <div style={{ marginTop: 8, fontSize: 12, color: "#92400e" }}>
-            Số lượng linh kiện đã có sẵn thông tin nguồn gốc: <b>{result.totalComponents}</b> thành phần. Hệ thống bảo toàn tính toàn vẹn và không chạy lại pipeline xác thực.
+            SBOM có <b>{result.totalComponents}</b> bản ghi. Để đối chiếu nguồn bằng phiên bản công cụ hiện tại, hãy chọn tệp gốc.
           </div>
         </div>
       )}
@@ -351,7 +377,7 @@ export default function SbomProvenancePage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
               <div style={{ fontWeight: 800, fontSize: 13.5, color: "#1d4ed8" }}>
-                Xác Thực Tính Toàn Vẹn Mã Băm SHA-256 Hệ Thống
+                Đối chiếu SHA-256 của SBOM đầu vào
               </div>
               <span
                 style={{
@@ -377,9 +403,10 @@ export default function SbomProvenancePage() {
               </div>
 
               <div style={{ background: "#f8fafc", padding: 10, borderRadius: 6, border: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}>Mã băm phả hệ Pedigree Digest SHA-256:</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}>SHA-256 tham chiếu từ kênh bàn giao tin cậy</div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "#059669", wordBreak: "break-all", marginTop: 2 }}>
-                  {result.pedigreeDigestSha256 || "—"}
+                  <input aria-label="SHA-256 tham chiếu" value={referenceHash} onChange={e => setReferenceHash(e.target.value.trim())} />
+                  {referenceHash && (/^[0-9a-f]{64}$/i.test(referenceHash) ? referenceHash.toLowerCase() === result.fileSha256 ? " Khớp" : " Không khớp" : " Cần 64 ký tự hex")}
                 </div>
               </div>
             </div>
@@ -402,7 +429,7 @@ export default function SbomProvenancePage() {
             </div>
 
             <div style={{ background: "#ffffff", border: "1px solid #bbf7d0", borderRadius: "var(--radius-lg)", padding: "14px 18px" }}>
-              <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>Đã xác thực chính thức</div>
+              <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>Bản phát hành có checksum</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>
                 {result.verifiedComponents}
               </div>
@@ -448,9 +475,12 @@ export default function SbomProvenancePage() {
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 {[
                   { key: "ALL", label: `Tất cả (${result.components.length})` },
-                  { key: "VERIFIED", label: `Đã Xác Thực (${result.verifiedComponents})` },
-                  { key: "SUSPICIOUS_VERSION", label: "Lệch Version" },
-                  { key: "NOT_FOUND", label: "Không Tìm Thấy Kho" },
+                  { key: "RELEASE_FOUND", label: `Có checksum tham chiếu (${result.verifiedComponents})` },
+                  { key: "NO_CHECKSUM", label: "Thiếu checksum" },
+                  { key: "MISSING_VERSION", label: "Thiếu phiên bản" },
+                  { key: "LOOKUP_ERROR", label: "Lỗi tra cứu" },
+                  { key: "UNSUPPORTED_SOURCE", label: "Nguồn khác" },
+                  { key: "NOT_FOUND", label: "Không có bản phát hành" },
                 ].map((t) => (
                   <button
                     key={t.key}
@@ -508,7 +538,7 @@ export default function SbomProvenancePage() {
                         PURL Chuẩn Hóa
                       </th>
                       <th style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10, padding: "10px 12px", width: "20%", borderBottom: "1px solid #e2e8f0" }}>
-                        Mã Băm Toàn Vẹn Chính Thức
+                        Checksum tham chiếu
                       </th>
                       <th style={{ position: "sticky", top: 0, background: "#f8fafc", zIndex: 10, padding: "10px 10px", width: "10%", borderBottom: "1px solid #e2e8f0" }}>
                         Kho Lưu Trữ
@@ -556,19 +586,19 @@ export default function SbomProvenancePage() {
                                   fontSize: 10.5,
                                   fontWeight: 700,
                                   background:
-                                    c.status === "VERIFIED"
+                                    c.status === "RELEASE_FOUND"
                                       ? "rgba(16, 185, 129, 0.12)"
                                       : c.status === "SUSPICIOUS_VERSION"
                                         ? "rgba(239, 68, 68, 0.12)"
                                         : "rgba(245, 158, 11, 0.12)",
                                   color:
-                                    c.status === "VERIFIED"
+                                    c.status === "RELEASE_FOUND"
                                       ? "#059669"
                                       : c.status === "SUSPICIOUS_VERSION"
                                         ? "#dc2626"
                                         : "#d97706",
                                   border:
-                                    c.status === "VERIFIED"
+                                    c.status === "RELEASE_FOUND"
                                       ? "1px solid rgba(16, 185, 129, 0.3)"
                                       : c.status === "SUSPICIOUS_VERSION"
                                         ? "1px solid rgba(239, 68, 68, 0.3)"
@@ -630,6 +660,7 @@ export default function SbomProvenancePage() {
                     <div style={{ marginTop: 4 }}><b>Phiên bản:</b> {selectedComponent.version}</div>
                     <div style={{ marginTop: 2, wordBreak: "break-all" }}><b>PURL:</b> <code>{selectedComponent.normalizedPurl}</code></div>
                     <div style={{ marginTop: 2 }}><b>Kho chính thức:</b> {selectedComponent.officialRegistry || "N/A"}</div>
+                    {selectedComponent.manifestPaths?.length > 0 && <p>Vị trí ghi nhận trong SBOM: {selectedComponent.manifestPaths.join(", ")}</p>}
                     {selectedComponent.repositoryUrl && (
                       <div style={{ marginTop: 2, wordBreak: "break-all" }}>
                         <b>Mã nguồn:</b> <a href={selectedComponent.repositoryUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb" }}>{selectedComponent.repositoryUrl}</a>
@@ -640,9 +671,10 @@ export default function SbomProvenancePage() {
                         <b>Commit SHA:</b> {selectedComponent.commitSha}
                       </div>
                     )}
+                    {selectedComponent.officialHash && <ArtifactCheck key={selectedComponent.normalizedPurl + selectedComponent.officialHash} component={selectedComponent} />}
                     {selectedComponent.officialHash && (
                       <div style={{ marginTop: 4, background: "#ffffff", padding: 8, borderRadius: 4, border: "1px solid var(--border-default)", wordBreak: "break-all" }}>
-                        <div style={{ fontWeight: 700, color: "#059669", fontSize: 11 }}>Mã băm toàn vẹn:</div>
+                        <div style={{ fontWeight: 700, color: "#059669", fontSize: 11 }}>Checksum do kho công bố:</div>
                         <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>{selectedComponent.officialHash}</div>
                       </div>
                     )}
@@ -661,10 +693,10 @@ export default function SbomProvenancePage() {
                   {/* Khối CycloneDX Pedigree JSON */}
                   <div style={{ background: "#ffffff", padding: 10, borderRadius: 6, border: "1px solid var(--border-default)" }}>
                     <div style={{ fontWeight: 700, color: "var(--text-primary)", marginBottom: 6, fontSize: 11 }}>
-                      Cấu Trúc Pedigree CycloneDX Đã Tạo:
+                      Pedigree do SBOM đầu vào cung cấp
                     </div>
                     <pre style={{ margin: 0, fontSize: 10.5, fontFamily: "Consolas, monospace", color: "var(--text-secondary)", maxHeight: 180, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                      {JSON.stringify(selectedComponent.pedigree, null, 2)}
+                      {JSON.stringify(selectedComponent.pedigree, null, 2) || "Chưa có bằng chứng phả hệ"}
                     </pre>
                   </div>
                 </div>

@@ -32,8 +32,7 @@ public class SbomProvenanceController {
         }
 
         try {
-            String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            ProvenanceResultDTO result = provenanceService.processProvenance(content);
+            ProvenanceResultDTO result = provenanceService.processProvenance(file.getBytes());
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("Lỗi xử lý xác thực nguồn gốc SBOM: {}", e.getMessage(), e);

@@ -1,7 +1,6 @@
 package com.example.sbom.service.reconciliation;
 
 import com.example.sbom.dto.reconciliation.CompareSbomsRequest;
-import com.example.sbom.dto.reconciliation.RuntimePackageItem;
 import com.example.sbom.dto.reconciliation.RuntimeReconciliationResponse;
 import com.example.sbom.repository.PackageRepository;
 import com.example.sbom.repository.ProjectRepository;
@@ -9,8 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,6 +62,24 @@ class RuntimeReconciliationServiceTest {
 
         // Check summary counts
         assertTrue(resp.getSummary().getAddedCount() > 0);
+    }
+
+    @Test
+    void observedCollectionDoesNotFallBackToTheDemoPreset() {
+        String targetUrl = "http://127.0.0.1:4000";
+        var service = Mockito.spy(reconciliationService);
+        Mockito.doReturn(null).when(service).runChromiumCdpScan(targetUrl);
+
+        var response = service.generateRuntimeSbom(Map.of(
+                "targetUrl", targetUrl,
+                "observedOnly", true,
+                "presetKey", "BASELINE",
+                "source1Content", "{\"components\":[{\"name\":\"example\",\"version\":\"1.0.0\"}]}"
+        ));
+
+        assertEquals(false, response.get("success"));
+        assertFalse(response.containsKey("sbomJson"));
+        Mockito.verify(service).runChromiumCdpScan(targetUrl);
     }
 
     @Test

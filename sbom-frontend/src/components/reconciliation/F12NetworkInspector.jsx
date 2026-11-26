@@ -125,6 +125,7 @@ export default function F12NetworkInspector({
   onExportRuntimeLog = null,
   onClose = null,
   onSyncUpdate = null,
+  snapshotOnly = false,
 }) {
   const [filterType, setFilterType] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -218,7 +219,7 @@ export default function F12NetworkInspector({
 
   // Đồng bộ Real-time qua Server-Sent Events (SSE) kết hợp dự phòng Polling nhanh
   useEffect(() => {
-    if (!isRecording) return;
+    if (snapshotOnly || !isRecording) return;
 
     let eventSource = null;
     try {
@@ -259,10 +260,10 @@ export default function F12NetworkInspector({
       if (eventSource) eventSource.close();
       clearInterval(timer);
     };
-  }, [isRecording]);
+  }, [isRecording, snapshotOnly]);
 
   useEffect(() => {
-    if (!isRecording || typeof window === "undefined" || !window.PerformanceObserver) return;
+    if (snapshotOnly || !isRecording || typeof window === "undefined" || !window.PerformanceObserver) return;
 
     let observer;
     try {
@@ -303,7 +304,7 @@ export default function F12NetworkInspector({
     return () => {
       if (observer) observer.disconnect();
     };
-  }, [isRecording]);
+  }, [isRecording, snapshotOnly]);
 
   const handleCaptureFromCurrentBrowser = () => {
     const real = captureRealBrowserNetworkEntries();
@@ -394,9 +395,9 @@ export default function F12NetworkInspector({
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontWeight: 800, color: "#0f172a", letterSpacing: 0.3, fontSize: 13.5 }}>
-              F12 Network và Memory Inspector Thời Gian Thực
+              {snapshotOnly ? "Yêu cầu mạng của phiên Chromium CDP" : "F12 Network và Memory Inspector Thời Gian Thực"}
             </span>
-            <span
+            {!snapshotOnly && <span
               style={{
                 fontSize: 10.5,
                 padding: "2px 8px",
@@ -420,9 +421,10 @@ export default function F12NetworkInspector({
                 }}
               />
               {isRecording ? "Live W3C Resource Timing" : "Paused"}
-            </span>
+            </span>}
           </div>
 
+          {!snapshotOnly && <>
           <button
             onClick={() => setIsRecording(!isRecording)}
             style={{
@@ -456,9 +458,11 @@ export default function F12NetworkInspector({
           >
             Xóa log
           </button>
+          </>}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {!snapshotOnly && <>
           <button
             onClick={() => setShowConnectModal(true)}
             style={{
@@ -496,6 +500,7 @@ export default function F12NetworkInspector({
           >
             Chụp Tab Hiện Tại
           </button>
+          </>}
 
           {onClose && (
             <button
@@ -518,7 +523,7 @@ export default function F12NetworkInspector({
       </div>
 
       {/* Tabs */}
-      <div
+      {!snapshotOnly && <div
         style={{
           background: "#f8fafc",
           borderBottom: "1px solid #e2e8f0",
@@ -630,7 +635,7 @@ export default function F12NetworkInspector({
             <span>Tài nguyên nội bộ của ứng dụng SBOM</span>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Modal hướng dẫn kết nối */}
       {showConnectModal && (
@@ -1004,7 +1009,7 @@ export default function F12NetworkInspector({
                       </td>
 
                       <td style={{ padding: "7px 8px", color: "#059669", fontFamily: "var(--font-mono)" }}>
-                        {req.durationMs} ms
+                        {req.durationMs == null ? "—" : `${req.durationMs} ms`}
                       </td>
 
                       <td style={{ padding: "7px 12px" }}>
@@ -1093,7 +1098,7 @@ export default function F12NetworkInspector({
                 <b>Nguồn khởi tạo:</b> {selectedRequest.initiator}
               </div>
               <div style={{ color: "#334155", marginTop: 2 }}>
-                <b>Chế độ bắt:</b> {selectedRequest.isLiveBrowser ? "Live W3C Resource Timing" : "HTTP Probe"}
+                <b>Chế độ bắt:</b> {selectedRequest.collectionSource || (selectedRequest.isLiveBrowser ? "Live W3C Resource Timing" : "HTTP Probe")}
               </div>
             </div>
 

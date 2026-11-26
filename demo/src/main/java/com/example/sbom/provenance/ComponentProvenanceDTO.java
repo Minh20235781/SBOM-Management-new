@@ -23,6 +23,8 @@ public class ComponentProvenanceDTO {
     private String officialHash;
     private String officialHashAlgorithm;
     private String componentSha256;
+    private String artifactUrl;
+    private List<String> manifestPaths;
     private String repositoryUrl;
     private String commitSha;
     private String releaseTag;

@@ -894,7 +894,21 @@ public class RuntimeReconciliationService {
      * Tạo tệp SBOM Runtime chuẩn CycloneDX 1.4 từ các thông tin bắt được trên F12 Network & RAM
      */
     public Map<String, Object> generateRuntimeSbom(Map<String, Object> request) {
-        String targetUrl = (String) request.getOrDefault("targetUrl", "http://localhost:3000");
+        boolean observedOnly = Boolean.TRUE.equals(request.get("observedOnly"));
+        Object requestedUrl = request.get("targetUrl");
+        String targetUrl = requestedUrl instanceof String url ? url.trim() : "";
+        if (observedOnly) {
+            try {
+                java.net.URI target = java.net.URI.create(targetUrl);
+                if (target.getHost() == null || target.getUserInfo() != null
+                        || !("http".equalsIgnoreCase(target.getScheme()) || "https".equalsIgnoreCase(target.getScheme()))) {
+                    return Map.of("success", false, "message", "URL dự án phải là địa chỉ HTTP hoặc HTTPS hợp lệ.");
+                }
+            } catch (IllegalArgumentException e) {
+                return Map.of("success", false, "message", "URL dự án không hợp lệ.");
+            }
+        }
+        if (targetUrl.isBlank()) targetUrl = "http://localhost:3000";
         String presetKey = (String) request.getOrDefault("presetKey", "BASELINE");
         String source1Content = (String) request.get("source1Content");
         @SuppressWarnings("unchecked")
@@ -904,7 +918,12 @@ public class RuntimeReconciliationService {
         Map<String, Object> cdpResult = runChromiumCdpScan(targetUrl);
         if (cdpResult != null && Boolean.TRUE.equals(cdpResult.get("success"))) {
             log.info("Chromium CDP scan succeeded for '{}'. Returning real evidence-based Runtime SBOM.", targetUrl);
-            return enrichWithServerRuntimeEvidence(cdpResult);
+            return cdpResult;
+        }
+
+        if (observedOnly) {
+            return Map.of("success", false, "message",
+                    "Không thu thập được dữ liệu runtime từ URL. Kiểm tra URL, Chrome và phụ thuộc của bộ thu thập rồi thử lại.");
         }
 
         log.warn("Chromium CDP scan unavailable or failed for '{}'. Falling back to secondary collector.", targetUrl);
@@ -1009,147 +1028,9 @@ public class RuntimeReconciliationService {
         response.put("packages", runtimePackages);
         response.put("auditLog", webResult.auditLog);
 
-        return enrichWithServerRuntimeEvidence(response);
+        return response;
     }
 
-    /**
-     * Hợp nhất bằng chứng Server Runtime (từ Node.js Agent) vào kết quả quét Browser Runtime
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> enrichWithServerRuntimeEvidence(Map<String, Object> result) {
-        if (result == null) return null;
-
-        List<Map<String, Object>> serverPackages = new ArrayList<>();
-        com.example.sbom.dto.reconciliation.NodeAgentReportRequest agentReport = latestNodeAgentReport.get();
-        if (agentReport != null && agentReport.getPackages() != null && !agentReport.getPackages().isEmpty()) {
-            for (RuntimePackageItem p : agentReport.getPackages()) {
-                Map<String, Object> sp = new LinkedHashMap<>();
-                sp.put("name", p.getName());
-                sp.put("version", p.getVersion());
-                sp.put("confidence", "HIGH");
-                sp.put("identificationMethod", "NODEJS_SERVER_MODULE_LOAD");
-                sp.put("hasExecutionEvidence", true);
-                sp.put("evidence", "Thư viện nạp thực tế trong máy chủ Node.js qua Module._load (PID: " + agentReport.getPid() + ")");
-                sp.put("source", "NODEJS_SERVER");
-                serverPackages.add(sp);
-            }
-        } else {
-            File inventoryFile = new File("runtime-evidence/server-runtime-inventory.json");
-            if (!inventoryFile.exists()) {
-                inventoryFile = new File("../runtime-evidence/server-runtime-inventory.json");
-            }
-            if (inventoryFile.exists()) {
-                try {
-                    JsonNode invNode = objectMapper.readTree(inventoryFile);
-                    JsonNode pkgs = invNode.path("packages");
-                    if (pkgs.isArray()) {
-                        String pid = invNode.path("pid").asText("unknown");
-                        for (JsonNode pkg : pkgs) {
-                            String name = pkg.path("name").asText(null);
-                            String version = pkg.path("version").asText("VERSION_UNKNOWN");
-                            if (name != null) {
-                                Map<String, Object> sp = new LinkedHashMap<>();
-                                sp.put("name", name);
-                                sp.put("version", version);
-                                sp.put("confidence", "HIGH");
-                                sp.put("identificationMethod", "NODEJS_SERVER_MODULE_LOAD");
-                                sp.put("hasExecutionEvidence", true);
-                                sp.put("evidence", "Thư viện nạp thực tế qua Module._load từ " + pkg.path("callerFile").asText() + " (PID: " + pid + ")");
-                                sp.put("source", "NODEJS_SERVER");
-                                serverPackages.add(sp);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("Không thể đọc file inventory: {}", e.getMessage());
-                }
-            }
-        }
-
-        if (serverPackages.isEmpty()) {
-            return result;
-        }
-
-        // Hợp nhất vào packages của result
-        List<Map<String, Object>> existingPackages = (List<Map<String, Object>>) result.get("packages");
-        if (existingPackages == null) {
-            existingPackages = new ArrayList<>();
-            result.put("packages", existingPackages);
-        }
-
-        Set<String> existingNames = existingPackages.stream()
-                .map(p -> normalizeKey((String) p.get("name")))
-                .collect(Collectors.toSet());
-
-        for (Map<String, Object> sp : serverPackages) {
-            String norm = normalizeKey((String) sp.get("name"));
-            if (!existingNames.contains(norm)) {
-                existingNames.add(norm);
-                existingPackages.add(sp);
-            }
-        }
-
-        // Cập nhật CycloneDX SBOM JSON
-        String sbomJsonStr = (String) result.get("sbomJson");
-        if (sbomJsonStr != null && !sbomJsonStr.isBlank()) {
-            try {
-                Map<String, Object> sbomMap = objectMapper.readValue(sbomJsonStr, new TypeReference<Map<String, Object>>() {});
-                List<Map<String, Object>> components = (List<Map<String, Object>>) sbomMap.get("components");
-                if (components == null) {
-                    components = new ArrayList<>();
-                    sbomMap.put("components", components);
-                }
-
-                Set<String> compNames = components.stream()
-                        .map(c -> normalizeKey((String) c.get("name")))
-                        .collect(Collectors.toSet());
-
-                for (Map<String, Object> sp : serverPackages) {
-                    String sName = (String) sp.get("name");
-                    String sVer = (String) sp.get("version");
-                    if (sVer == null || sVer.isBlank()) sVer = "1.0.0";
-                    String norm = normalizeKey(sName);
-
-                    if (!compNames.contains(norm)) {
-                        compNames.add(norm);
-                        Map<String, Object> c = new LinkedHashMap<>();
-                        c.put("bom-ref", "pkg:npm/" + sName + "@" + sVer + "?runtime-source=nodejs-server");
-                        c.put("type", "library");
-                        c.put("name", sName);
-                        c.put("version", sVer);
-                        c.put("purl", "pkg:npm/" + sName + "@" + sVer);
-                        c.put("properties", List.of(
-                                Map.of("name", "runtime:confidence", "value", "HIGH"),
-                                Map.of("name", "runtime:identificationMethod", "value", "NODEJS_SERVER_MODULE_LOAD"),
-                                Map.of("name", "runtime:hasExecutionEvidence", "value", "true"),
-                                Map.of("name", "runtime:collectionSource", "value", "NODEJS_SERVER")
-                        ));
-                        components.add(c);
-                    }
-                }
-
-                result.put("sbomJson", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(sbomMap));
-                result.put("componentCount", components.size());
-            } catch (Exception e) {
-                log.warn("Không thể cập nhật CycloneDX với server packages: {}", e.getMessage());
-            }
-        }
-
-        // Bổ sung thông tin server vào auditLog
-        Map<String, Object> auditLog = (Map<String, Object>) result.get("auditLog");
-        if (auditLog != null) {
-            Map<String, Object> serverInfo = new LinkedHashMap<>();
-            serverInfo.put("serverPackagesCount", serverPackages.size());
-            serverInfo.put("connected", true);
-            auditLog.put("serverRuntime", serverInfo);
-        }
-
-        return result;
-    }
-
-    /**
-     * Đánh giá AI theo yêu cầu cho một điểm khác biệt cụ thể
-     */
     public AiDiffEvaluationResponse evaluateDiff(AiDiffEvaluationRequest request) {
         return aiEngine.evaluateDiff(request);
     }

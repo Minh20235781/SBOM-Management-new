@@ -1,0 +1,16 @@
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+}
+
+.inputCard {
+  min-width: 0;
+  padding: 18px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .page { padding-inline: 0; }
+  .inputCard { padding: var(--space-2); }
+}

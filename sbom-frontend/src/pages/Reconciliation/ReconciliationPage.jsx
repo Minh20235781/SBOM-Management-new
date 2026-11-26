@@ -1,337 +1,201 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../../components/shared/PageHeader";
 import Spinner from "../../components/shared/Spinner";
 import ErrorBanner from "../../components/shared/ErrorBanner";
-import ProgressBar from "../../components/shared/ProgressBar";
-import { matchPoc, exportPocCsv, generateRuntimeSbom } from "../../api/reconciliationApi";
-import F12NetworkInspector, {
-  captureRealBrowserNetworkEntries,
-  detectPackageFromResourceUrl
-} from "../../components/reconciliation/F12NetworkInspector";
+import { Field, Input, Select } from "../../components/shared/Form";
+import { exportPocCsv, generateRuntimeSbom } from "../../api/reconciliationApi";
+import F12NetworkInspector from "../../components/reconciliation/F12NetworkInspector";
 import toast from "react-hot-toast";
+import { getOriginalSbom, listNormalizedSboms, listSbomComparisons, saveSbomComparison } from "../../utils/sbomSnapshots";
+import DependencyComparison from "./DependencyComparison";
+import { compareDependencyGraphs, readDependencyGraph } from "./compareDependencyGraphs";
+import { readBrowserLog, attachBackend } from "./runtimeEvidence";
+import styles from "./ReconciliationPage.module.css";
 
-const SAMPLE_CYCLONEDX_SBOM = JSON.stringify(
-  {
-    bomFormat: "CycloneDX",
-    specVersion: "1.5",
-    components: [
-      { type: "library", name: "react", version: "18.3.1", purl: "pkg:npm/react@18.3.1" },
-      { type: "library", name: "react-dom", version: "18.3.1", purl: "pkg:npm/react-dom@18.3.1" },
-      { type: "library", name: "axios", version: "1.7.2", purl: "pkg:npm/axios@1.7.2" },
-      { type: "library", name: "lodash", version: "4.17.21", purl: "pkg:npm/lodash@4.17.21" },
-      { type: "library", name: "@supabase/supabase-js", version: "2.45.4", purl: "pkg:npm/%40supabase/supabase-js@2.45.4" },
-      { type: "library", name: "lucide-react", version: "0.453.0", purl: "pkg:npm/lucide-react@0.453.0" },
-      { type: "library", name: "jsonwebtoken", version: "9.0.2", purl: "pkg:npm/jsonwebtoken@9.0.2" }
-    ]
-  },
-  null,
-  2
-);
+const sourceSelectStyle = {
+  minWidth: 0,
+  maxWidth: "100%",
+  paddingInlineStart: "min(var(--space-3), 10%)",
+  paddingInlineEnd: "min(var(--space-8), 40%)",
+  textOverflow: "ellipsis",
+};
+
+function downloadJson(payload, filename) {
+  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }), filename);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export default function ReconciliationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Nguồn 1: SBOM Cơ sở duy nhất từ file
-  const [source1Content, setSource1Content] = useState("");
-  const [source1FileName, setSource1FileName] = useState("");
-  const [source1ComponentCount, setSource1ComponentCount] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [catalog, setCatalog] = useState([]);
+  const [savedComparisons, setSavedComparisons] = useState([]);
+  const sourceId = searchParams.get("sbom") || "";
+  const source = catalog.find(({ id }) => id === sourceId);
+  const source1Content = source?.content || "";
 
   // Nguồn 2: Dữ liệu quan sát Runtime duy nhất từ link web qua nút Run
   const [targetWebUrl, setTargetWebUrl] = useState("");
   const [isRunningScan, setIsRunningScan] = useState(false);
-  const [runtimeSbomReady, setRuntimeSbomReady] = useState(false);
-  const [runtimeSbomJson, setRuntimeSbomJson] = useState("");
-  const [runtimeLogData, setRuntimeLogData] = useState(null);
-  const [runtimePackageCount, setRuntimePackageCount] = useState(0);
-  const [runtimeResourceCount, setRuntimeResourceCount] = useState(0);
-  const [targetWebRequests, setTargetWebRequests] = useState([]);
+  const [runtime, setRuntime] = useState(null);
   const [showF12Inspector, setShowF12Inspector] = useState(false);
+  const runtimeSbomReady = !!runtime;
+  const targetWebRequests = runtime?.auditLog?.capturedNetworkRequests || [];
+  const runtimePackageCount = runtime?.componentCount ?? 0;
+  const runtimeResourceCount = targetWebRequests.length;
 
   // Kết quả đối sánh sau khi có đủ cả 2 nguồn
   const [matchReport, setMatchReport] = useState(null);
+  const [selection, setSelection] = useState(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
-
-  const fileInputRef1 = useRef(null);
-
-  // Tiến trình chạy link web (Nguồn 2)
-  const [runtimeProgress, setRuntimeProgress] = useState(0);
-  const [runtimeStatusText, setRuntimeStatusText] = useState("");
-  const [runtimeStepIndex, setRuntimeStepIndex] = useState(0);
-  const runtimeTimerRef = useRef(null);
-
-  const runtimeSteps = [
-    "Khởi chạy Chromium CDP",
-    "Lắng nghe lưu lượng F12",
-    "Bóc tách bundle & RAM V8",
-    "Đóng gói CycloneDX Runtime",
-  ];
-
-  // Tiến trình thực hiện đối sánh (Nguồn 1 vs Nguồn 2)
-  const [matchProgress, setMatchProgress] = useState(0);
-  const [matchStatusText, setMatchStatusText] = useState("");
-  const [matchStepIndex, setMatchStepIndex] = useState(0);
-  const matchTimerRef = useRef(null);
-
-  const matchSteps = [
-    "Nạp SBOM Tĩnh",
-    "Đọc Runtime HAR",
-    "Khử trùng lặp & So khớp",
-    "Tổng hợp Báo cáo 4 trạng thái",
-  ];
+  const staticGraph = useMemo(() => source1Content ? readDependencyGraph(JSON.parse(source1Content)) : null, [source1Content]);
+  const runtimeGraph = useMemo(() => runtime ? readDependencyGraph(JSON.parse(runtime.content)) : null, [runtime]);
 
   useEffect(() => {
-    return () => {
-      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
-      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
-    };
+    let active = true;
+    listNormalizedSboms().then((records) => {
+      if (active) setCatalog(records);
+    }).catch((err) => { if (active) setError(`Không đọc được danh sách SBOM: ${err.message}`); });
+    return () => { active = false; };
   }, []);
 
-  const handleSource1FileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    if (!sourceId) return;
+    let active = true;
+    listSbomComparisons(sourceId).then((records) => {
+      if (active) setSavedComparisons(records);
+    }).catch((err) => { if (active) setError(`Không đọc được lịch sử đối sánh: ${err.message}`); });
+    return () => { active = false; };
+  }, [sourceId]);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result;
-      if (typeof text === "string") {
-        try {
-          const parsed = JSON.parse(text);
-
-          // Cơ chế kiểm soát: Chỉ chấp nhận file SBOM tĩnh ĐÃ CHUẨN HÓA VÀ XÁC THỰC NGUỒN GỐC
-          const isNormalizedProperty = parsed.metadata?.properties?.some(
-            (p) => p.name === "devops.provenance.normalized" && p.value === "true"
-          );
-          const components = parsed.components || parsed.packages || [];
-          const withPedigree = components.filter((c) => c.pedigree && Object.keys(c.pedigree).length > 0).length;
-          const hasHighPedigreeRatio = components.length > 0 && withPedigree / components.length >= 0.5;
-
-          if (!isNormalizedProperty && !hasHighPedigreeRatio) {
-            toast.error(
-              "Tệp từ chối: Nguồn 1 chỉ tiếp nhận file SBOM tĩnh đã chuẩn hóa và xác thực nguồn gốc (vui lòng qua trang SBOM Provenance để chuẩn hóa trước)"
-            );
-            setSource1FileName("");
-            setSource1Content("");
-            setSource1ComponentCount(0);
-            return;
-          }
-
-          setSource1FileName(file.name);
-          setSource1Content(text);
-          setSource1ComponentCount(components.length);
-          toast.success(`Đã tiếp nhận SBOM tĩnh đã chuẩn hóa: ${file.name}`);
-        } catch (err) {
-          toast.error("Tệp không phải là định dạng JSON SBOM hợp lệ");
-          setSource1ComponentCount(0);
-        }
-      }
-    };
-    reader.readAsText(file);
+  const resetComparison = () => {
+    setMatchReport(null);
+    setSelection(null);
+    setStatusFilter("ALL");
+    setSearchTerm("");
   };
 
-  // Nút Run ở Nguồn 2: Bắt F12 Network trên browser và quét bộ nhớ memory Engine v8
+  const handleSourceChange = (id) => {
+    setSearchParams(id ? { sbom: id } : {}, { replace: true });
+    setSavedComparisons([]);
+    setRuntime(null);
+    setShowF12Inspector(false);
+    setError(null);
+    resetComparison();
+  };
+
   const handleRunRuntimeScan = async () => {
-    if (!targetWebUrl.trim()) {
-      toast.error("Vui lòng nhập địa chỉ web của dự án");
+    let url;
+    try {
+      url = new URL(targetWebUrl.trim());
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error();
+    } catch {
+      setError("Nhập URL HTTP hoặc HTTPS của dự án, ví dụ http://localhost:3000.");
       return;
     }
 
+    setIsRunningScan(true);
+    setRuntime(null);
+    setShowF12Inspector(false);
+    resetComparison();
+    setError(null);
     try {
-      setIsRunningScan(true);
-      setError(null);
-      setRuntimeProgress(10);
-      setRuntimeStepIndex(0);
-      setRuntimeStatusText("Khởi chạy Chromium headless và thiết lập Chrome DevTools Protocol...");
-
-      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
-      runtimeTimerRef.current = setInterval(() => {
-        setRuntimeProgress((prev) => {
-          if (prev < 25) {
-            setRuntimeStepIndex(0);
-            setRuntimeStatusText("Khởi chạy Chromium CDP và thiết lập môi trường thu thập...");
-            return prev + 3;
-          } else if (prev < 55) {
-            setRuntimeStepIndex(1);
-            setRuntimeStatusText("Truy cập trang web mục tiêu & bắt lưu lượng mạng F12...");
-            return prev + 2.2;
-          } else if (prev < 82) {
-            setRuntimeStepIndex(2);
-            setRuntimeStatusText("Giải mã bundle JavaScript & bóc tách các package trong RAM V8...");
-            return prev + 1.6;
-          } else if (prev < 93) {
-            setRuntimeStepIndex(3);
-            setRuntimeStatusText("Đóng gói dữ liệu bằng chứng và chuẩn bị xuất Runtime SBOM...");
-            return prev + 0.8;
-          }
-          return prev;
-        });
-      }, 250);
-
-      // Thu thập các network request thực tế từ browser
-      let browserEntries = [];
-      try {
-        browserEntries = captureRealBrowserNetworkEntries();
-      } catch (err) {
-        console.warn("Không thể đọc window.performance:", err);
+      const res = await generateRuntimeSbom({ targetUrl: url.href, observedOnly: true });
+      if (!res?.success || !res.sbomJson || !res.sessionId) {
+        throw new Error(res?.message || "Bộ thu thập chưa trả về phiên SBOM runtime hợp lệ.");
       }
-
-      // Gọi API chạy phân tích trang web và quét bộ nhớ Engine v8
-      const res = await generateRuntimeSbom({
-        targetUrl: targetWebUrl.trim(),
-        presetKey: "BASELINE",
-        source1Content: source1Content || null,
-        browserRequests: browserEntries,
-      });
-
-      if (!res || !res.success) {
-        throw new Error("Không nhận được phản hồi từ trình quét runtime");
-      }
-
-      const generatedSbomJson = res.sbomJson || "{}";
-      const detectedPackages = res.packages || [];
-      const auditLog = res.auditLog || {};
-      const rawNet = auditLog.capturedNetworkRequests || [];
-
-      // Định dạng các request mạng F12 thực tế bóc tách từ trang web
-      const formattedNet = rawNet.map((r, idx) => {
-        const u = r.url || "";
-        const fName = u.split("/").pop()?.split("?")[0] || u;
-        return {
-          id: `target-${idx}-${Date.now()}`,
-          url: u,
-          fileName: fName,
-          type: r.type || "script",
-          status: r.status || 200,
-          statusText: "OK",
-          sizeBytes: r.sizeBytes || 18500,
-          durationMs: r.latencyMs || 25,
-          startTimeMs: idx * 15,
-          initiator: r.initiator || "script",
-          detectedPackage: detectPackageFromResourceUrl(u),
-          isLiveBrowser: true,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-      });
-
-      clearInterval(runtimeTimerRef.current);
-      setRuntimeProgress(100);
-      setRuntimeStepIndex(3);
-      setRuntimeStatusText("Thu thập và đóng gói Runtime SBOM CycloneDX thành công!");
-
-      setTargetWebRequests(formattedNet);
-      setRuntimeSbomJson(generatedSbomJson);
-      setRuntimePackageCount(detectedPackages.length);
-      setRuntimeResourceCount(formattedNet.length);
-      setShowF12Inspector(true);
-
-      // Cấu trúc file log hoàn chỉnh
-      const logPayload = {
-        sessionId: res.sessionId,
-        targetUrl: res.targetUrl,
-        scannedAt: res.scannedAt,
-        componentCount: res.componentCount,
-        engineV8Packages: detectedPackages,
-        f12NetworkAuditLog: auditLog,
-        cycloneDxRuntimeSbom: JSON.parse(generatedSbomJson),
-      };
-      setRuntimeLogData(logPayload);
-      setRuntimeSbomReady(true);
-
-      toast.success("Đã hoàn thành thu thập SBOM runtime từ F12 và Engine v8");
+      setRuntime(readBrowserLog(res));
+      toast.success("Đã thu thập SBOM runtime từ URL dự án");
     } catch (err) {
-      if (runtimeTimerRef.current) clearInterval(runtimeTimerRef.current);
-      setError(err.message || "Lỗi khi quét runtime web");
-      toast.error("Lỗi khi quét runtime web: " + err.message);
+      setError(err.message || "Lỗi khi thu thập SBOM runtime");
     } finally {
       setIsRunningScan(false);
     }
   };
 
-  // Xuất file log JSON cho người dùng nếu muốn
-  const handleExportRuntimeLog = () => {
-    if (!runtimeLogData) {
-      toast.error("Chưa có dữ liệu log runtime để xuất");
-      return;
-    }
+  const importEvidence = async (event, backend) => {
+    const files = Array.from(event.target.files);
+    event.target.value = "";
+    if (!files.length) return;
+    setError(null);
+    setLoading(true);
+    const staticDocument = JSON.parse(source1Content);
+    const hash = staticDocument.metadata?.properties?.find(p => p.name === "devops.provenance.file_sha256")?.value || sourceId;
     try {
-      const jsonStr = JSON.stringify(runtimeLogData, null, 2);
-      const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `runtime-sbom-log-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success("Đã tải xuống file log JSON");
-    } catch (err) {
-      toast.error("Không thể xuất file log JSON: " + err.message);
-    }
+      let next = runtime;
+      for (const file of files) {
+        const data = JSON.parse(await file.text());
+        if (backend) next = attachBackend(next, data, hash);
+        else {
+          next = readBrowserLog(data);
+          for (const inventory of Object.values(data.backendEvidence || {})) next = attachBackend(next, inventory, hash);
+        }
+      }
+      setRuntime(next);
+      setTargetWebUrl(next.targetUrl);
+      resetComparison();
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
-  // Thực hiện đối sánh khi đã có đủ 2 nguồn
+  const handleExportRuntimeLog = () => {
+    if (!runtime) return;
+    downloadJson({
+      sessionId: runtime.sessionId,
+      targetUrl: runtime.targetUrl,
+      scannedAt: runtime.scannedAt,
+      componentCount: runtime.componentCount,
+      backendEvidence: runtime.backendEvidence,
+      engineV8Packages: runtime.auditLog?.identifiedPackages,
+      f12NetworkAuditLog: runtime.auditLog,
+      cycloneDxRuntimeSbom: JSON.parse(runtime.content),
+    }, `runtime-sbom-log-${runtime.sessionId}.json`);
+  };
+
   const handleExecuteMatch = async () => {
-    if (!source1Content) {
-      toast.error("Vui lòng nạp file SBOM tĩnh ở Nguồn 1");
-      return;
-    }
-    if (!runtimeSbomReady || !runtimeSbomJson) {
-      toast.error("Vui lòng nhấn Run ở Nguồn 2 để thu thập SBOM runtime trước");
-      return;
-    }
-
+    if (!staticGraph || !runtimeGraph) return;
+    setLoading(true);
+    setError(null);
+    resetComparison();
     try {
-      setLoading(true);
-      setError(null);
-      setMatchProgress(12);
-      setMatchStepIndex(0);
-      setMatchStatusText("Đang nạp và kiểm tra dữ liệu SBOM Tĩnh (Nguồn 1)...");
-
-      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
-      matchTimerRef.current = setInterval(() => {
-        setMatchProgress((prev) => {
-          if (prev < 30) {
-            setMatchStepIndex(0);
-            setMatchStatusText("Phân tích Package URL và danh mục linh kiện trong SBOM tĩnh...");
-            return prev + 3.5;
-          } else if (prev < 60) {
-            setMatchStepIndex(1);
-            setMatchStatusText("Đọc dữ liệu Runtime HAR và giải mã các URL tài nguyên...");
-            return prev + 2.8;
-          } else if (prev < 85) {
-            setMatchStepIndex(2);
-            setMatchStatusText("Thực hiện đối soát chéo, khử trùng lặp và phân loại 4 trạng thái...");
-            return prev + 2;
-          } else if (prev < 94) {
-            setMatchStepIndex(3);
-            setMatchStatusText("Tổng hợp ma trận đối soát và tính toán số liệu thống kê...");
-            return prev + 0.8;
-          }
-          return prev;
-        });
-      }, 200);
-
-      const res = await matchPoc({
-        sbomContent: source1Content,
-        harContent: runtimeSbomJson,
-      });
-
-      clearInterval(matchTimerRef.current);
-      setMatchProgress(100);
-      setMatchStepIndex(3);
-      setMatchStatusText("Đối sánh SBOM tĩnh và Runtime hoàn tất thành công!");
-
-      setMatchReport(res);
+      const report = compareDependencyGraphs(staticGraph, runtimeGraph);
+      try {
+        const saved = await saveSbomComparison(sourceId, { ...runtime, report });
+        setRuntime(saved);
+        setSavedComparisons((records) => [saved, ...records.filter(({ id }) => id !== saved.id)]);
+      } catch (storageError) {
+        setError(`Có kết quả đối sánh nhưng chưa lưu được phiên: ${storageError.message}`);
+      }
+      setMatchReport(report);
       toast.success("Đối sánh hoàn tất");
     } catch (err) {
-      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
       setError(err.message || "Lỗi khi thực hiện đối sánh");
-      toast.error("Đối sánh thất bại: " + err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRestoreComparison = (id) => {
+    const saved = savedComparisons.find((record) => record.id === id && record.staticId === sourceId);
+    if (!saved) return;
+    resetComparison();
+    setTargetWebUrl(saved.targetUrl);
+    setRuntime(saved);
+    setShowF12Inspector(false);
+    setError(null);
+    setMatchReport(saved.report);
   };
 
   const handleExportCsv = async () => {
@@ -340,7 +204,10 @@ export default function ReconciliationPage() {
       return;
     }
     try {
-      const blob = await exportPocCsv(matchReport);
+      const { summary, results } = matchReport;
+      const blob = await exportPocCsv({ summary, results: results.map(({ status, component, staticVersion, runtimeResource, runtimeVersion, versionStatus, evidence }) => (
+        { status, component, staticVersion, runtimeResource, runtimeVersion, versionStatus, evidence }
+      )) });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -361,16 +228,16 @@ export default function ReconciliationPage() {
       return;
     }
     try {
-      const jsonStr = JSON.stringify(matchReport, null, 2);
-      const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "matching-results.json";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      downloadJson({
+        ...matchReport,
+        inputs: {
+          static: { id: sourceId, name: source.name, sha256: sourceId, originalSha256: source.originalHash || JSON.parse(source.content).metadata?.properties?.find(p => p.name === "devops.provenance.file_sha256")?.value },
+          runtime: { sessionId: runtime.sessionId, url: runtime.targetUrl, scannedAt: runtime.scannedAt, sha256: runtime.runtimeSha256 },
+        },
+        observation: runtime.auditLog?.observation,
+        backendEvidence: runtime.backendEvidence || {},
+        graphs: { static: [...staticGraph.nodes.values()], runtime: [...runtimeGraph.nodes.values()] },
+      }, "matching-results.json");
       toast.success("Đã xuất báo cáo JSON");
     } catch (err) {
       toast.error("Không thể xuất JSON: " + err.message);
@@ -448,11 +315,11 @@ export default function ReconciliationPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "20px 24px" }}>
+    <div className={styles.page}>
       {/* Header */}
       <PageHeader
         title="Đối Sánh SBOM Tĩnh Với Dữ Liệu Runtime"
-        description="Đối sánh danh sách component từ file SBOM tĩnh với SBOM runtime thu thập từ F12 Browser và bộ nhớ Engine v8"
+        description="Chọn SBOM đã chuẩn hóa và thu thập SBOM runtime từ URL của cùng dự án đang chạy."
       />
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -461,26 +328,26 @@ export default function ReconciliationPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
           gap: 20,
           marginTop: 20,
           marginBottom: 20,
         }}
       >
-        {/* Nguồn 1: SBOM Cơ sở duy nhất từ file */}
+        {/* SBOM tĩnh đã lưu từ Provenance */}
         <div
+          className={styles.inputCard}
           style={{
             background: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "var(--radius-lg)",
-            padding: 18,
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
           }}
         >
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontWeight: 800, fontSize: "var(--font-md)", color: "var(--text-primary)" }}>
                 Nguồn 1: SBOM Cơ Sở
               </div>
@@ -499,34 +366,35 @@ export default function ReconciliationPage() {
             </div>
 
             <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Yêu cầu tệp SBOM tĩnh <b>đã được chuẩn hóa và xác thực nguồn gốc</b> (có trường pedigree và mã băm toàn vẹn)
+              Chọn một SBOM từ <Link to="/provenance">trang SBOM Provenance</Link>.
             </div>
 
-            <input
-              ref={fileInputRef1}
-              type="file"
-              accept=".json"
-              style={{ display: "none" }}
-              onChange={handleSource1FileChange}
-            />
-
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-              <button
-                onClick={() => fileInputRef1.current?.click()}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-default)",
-                  background: "var(--bg-secondary)",
-                  color: "var(--text-primary)",
-                  fontWeight: 600,
-                  fontSize: "var(--font-sm)",
-                  cursor: "pointer",
-                }}
-              >
-                Chọn Tệp SBOM Đã Chuẩn Hóa
-              </button>
+            <div style={{ marginBottom: "var(--space-3)" }}>
+              <Select aria-label="SBOM đã chuẩn hóa" value={source ? sourceId : ""} title={source?.name}
+                onChange={(event) => handleSourceChange(event.target.value)} disabled={loading || isRunningScan} style={sourceSelectStyle}>
+                <option value="">{catalog.length ? "Chọn SBOM đã chuẩn hóa" : "Chưa có SBOM đã lưu trên trình duyệt này"}</option>
+                {catalog.map(({ id, name, version, count, savedAt }) => (
+                  <option key={id} value={id}>{name}{version ? ` · ${version}` : ""} · {count} thành phần · {new Date(savedAt).toLocaleString("vi-VN")} · {id.slice(0, 8)}</option>
+                ))}
+              </Select>
             </div>
+            {source?.originalHash && <button onClick={async () => {
+              try {
+                const blob = await getOriginalSbom(source.originalHash);
+                downloadBlob(blob, blob.name || "sbom-original.json");
+              } catch (err) { setError(err.message); }
+            }}>Tải lại SBOM gốc</button>}
+            {source && savedComparisons.some((record) => record.staticId === sourceId) && (
+              <Field label="Mở phiên đối sánh đã lưu" htmlFor="reconciliation-saved-session">
+                <Select id="reconciliation-saved-session" value={runtime?.id || ""} title={runtime?.id ? runtime.targetUrl : undefined}
+                  disabled={loading || isRunningScan} onChange={(event) => handleRestoreComparison(event.target.value)} style={sourceSelectStyle}>
+                  <option value="" disabled>Chọn phiên</option>
+                  {savedComparisons.filter((record) => record.staticId === sourceId).map((record) => (
+                    <option key={record.id} value={record.id}>{new Date(record.scannedAt).toLocaleString("vi-VN")} · {record.targetUrl} · {record.sessionId}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
           </div>
 
           <div
@@ -539,28 +407,28 @@ export default function ReconciliationPage() {
             }}
           >
             <div style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-              Tệp đã chọn: <span style={{ color: "#60a5fa" }}>{source1FileName || "Chưa chọn tệp"}</span>
+              SBOM đã chọn <span style={{ color: "#60a5fa", overflowWrap: "anywhere" }}>{source?.name || "Chưa chọn"}</span>
             </div>
             <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-              Số component tĩnh đã đọc: <b style={{ color: "#10b981" }}>{source1ComponentCount}</b>
+              Số thành phần <b style={{ color: "#10b981" }}>{source?.count ?? 0}</b>
             </div>
           </div>
         </div>
 
         {/* Nguồn 2: Dữ liệu quan sát Runtime duy nhất từ link web qua nút Run */}
         <div
+          className={styles.inputCard}
           style={{
             background: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "var(--radius-lg)",
-            padding: 18,
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
           }}
         >
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontWeight: 800, fontSize: "var(--font-md)", color: "var(--text-primary)" }}>
                 Nguồn 2: Dữ Liệu Quan Sát Runtime
               </div>
@@ -574,37 +442,36 @@ export default function ReconciliationPage() {
                   fontWeight: 700,
                 }}
               >
-                F12 Browser và Engine v8
+                Chromium CDP
               </span>
             </div>
 
             <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Nhập link web của dự án và bấm Run để tự động bắt F12 và quét bộ nhớ memory Engine v8
+              Nhập URL bản deploy hoặc bản chạy local tương ứng với SBOM tĩnh.
             </div>
 
             {/* Ô NHẬP LINK WEB VÀ NÚT RUN CẠNH NHAU */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-              <input
-                type="text"
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <Input
+                type="url"
+                aria-label="URL của dự án"
                 value={targetWebUrl}
-                onChange={(e) => setTargetWebUrl(e.target.value)}
-                placeholder="Nhập link web, ví dụ..."
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-default)",
-                  background: "var(--bg-secondary)",
-                  color: "var(--text-primary)",
-                  fontSize: "var(--font-sm)",
-                  outline: "none",
+                disabled={isRunningScan || loading}
+                onChange={(e) => {
+                  setTargetWebUrl(e.target.value);
+                  setRuntime(null);
+                  setShowF12Inspector(false);
+                  setError(null);
+                  resetComparison();
                 }}
+                placeholder="http://localhost:3000"
+                style={{ flex: "1 1 min(100%, 10rem)", minWidth: 0, paddingInline: "min(var(--space-3), 10%)" }}
               />
 
               {/* NÚT RUN KÈM NÉT TAM GIÁC CHẠY BẰNG CSS BORDER */}
               <button
                 onClick={handleRunRuntimeScan}
-                disabled={isRunningScan}
+                disabled={isRunningScan || loading || !source || !targetWebUrl.trim()}
                 style={{
                   padding: "8px 20px",
                   borderRadius: "var(--radius-md)",
@@ -636,17 +503,16 @@ export default function ReconciliationPage() {
               </button>
             </div>
 
+            <label>Nhập log trình duyệt CDP <input type="file" accept=".json" disabled={!source || loading || isRunningScan} onChange={e => importEvidence(e, false)} /></label>
+            <label>Ghép log backend cùng phiên <input type="file" multiple accept=".json" disabled={!runtime || loading || isRunningScan} onChange={e => importEvidence(e, true)} /></label>
+            {runtime && <p>Tiến trình backend đã đối chiếu request: {Object.keys(runtime.backendEvidence || {}).length}</p>}
+            {runtime?.auditLog?.observation && <p>
+              {runtime.auditLog.observation.scenario || "Log chưa ghi thao tác"} · Build trình duyệt: {runtime.auditLog.observation.buildId || "chưa ghi nhận"}
+            </p>}
+            {runtime?.omittedServerCount > 0 && <p>Log cũ có dữ liệu server thiếu liên kết request. Chỉ dùng phần trình duyệt.</p>}
             {/* Thanh tiến trình chạy link web Nguồn 2 */}
-            {(isRunningScan || (runtimeProgress > 0 && runtimeProgress < 100)) && (
-              <ProgressBar
-                progress={runtimeProgress}
-                statusText={runtimeStatusText}
-                stepText={`Bước ${Math.min(runtimeStepIndex + 1, runtimeSteps.length)}/${runtimeSteps.length}`}
-                steps={runtimeSteps}
-                currentStepIndex={runtimeStepIndex}
-                color="#16a34a"
-                style={{ padding: "12px 16px", margin: "0 0 12px 0" }}
-              />
+            {isRunningScan && (
+              <p role="status">Đang thu thập dữ liệu từ ứng dụng bằng Chromium CDP…</p>
             )}
           </div>
 
@@ -663,12 +529,13 @@ export default function ReconciliationPage() {
             {runtimeSbomReady ? (
               <div>
                 <div style={{ color: "#10b981", fontWeight: 700, marginBottom: 4 }}>
-                  Đã hoàn thành thu thập SBOM runtime từ F12 Browser và bộ nhớ Engine v8
+                  SBOM runtime đã sẵn sàng
                 </div>
                 <div style={{ color: "var(--text-secondary)", display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
                   <span>Số tài nguyên F12: <b style={{ color: "var(--text-primary)" }}>{runtimeResourceCount}</b></span>
-                  <span>Số thư viện nạp trong Engine v8: <b style={{ color: "var(--text-primary)" }}>{runtimePackageCount}</b></span>
+                  <span>Gói nhận diện được: <b style={{ color: "var(--text-primary)" }}>{runtimePackageCount}</b></span>
                 </div>
+                <p style={{ overflowWrap: "anywhere" }}>{runtime.targetUrl} · {runtime.sessionId} · {new Date(runtime.scannedAt).toLocaleString("vi-VN")}</p>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <button
                     onClick={handleExportRuntimeLog}
@@ -705,7 +572,7 @@ export default function ReconciliationPage() {
               </div>
             ) : (
               <div style={{ color: "var(--text-muted)" }}>
-                Chưa có dữ liệu runtime. Vui lòng bấm nút Run để khởi chạy và quét dự án trên browser và RAM
+                Chưa có phiên runtime cho URL đã nhập.
               </div>
             )}
           </div>
@@ -716,7 +583,7 @@ export default function ReconciliationPage() {
       <div style={{ textAlign: "center", marginBottom: 24 }}>
         <button
           onClick={handleExecuteMatch}
-          disabled={loading || !runtimeSbomReady || !source1Content}
+          disabled={loading || isRunningScan || !runtimeSbomReady || !source1Content}
           style={{
             padding: "12px 36px",
             borderRadius: "var(--radius-lg)",
@@ -739,54 +606,20 @@ export default function ReconciliationPage() {
         )}
       </div>
 
-      {/* Thanh tiến trình đối sánh 2 nguồn SBOM */}
-      {(loading || (matchProgress > 0 && matchProgress < 100)) && (
-        <div style={{ maxWidth: 860, margin: "0 auto 24px auto" }}>
-          <ProgressBar
-            progress={matchProgress}
-            statusText={matchStatusText}
-            stepText={`Bước ${Math.min(matchStepIndex + 1, matchSteps.length)}/${matchSteps.length}`}
-            steps={matchSteps}
-            currentStepIndex={matchStepIndex}
-            color="#2563eb"
+      {showF12Inspector && runtime && (
+        <div style={{ marginBottom: 24 }}>
+          <F12NetworkInspector
+            targetUrl={runtime.targetUrl}
+            capturedLogs={targetWebRequests}
+            snapshotOnly
+            onClose={() => setShowF12Inspector(false)}
           />
         </div>
       )}
 
-      {/* F12 NETWORK INSPECTOR BẬT TẮT ĐỘNG */}
-      {showF12Inspector && (
-        <div style={{ marginBottom: 24 }}>
-          <F12NetworkInspector
-            targetUrl={targetWebUrl}
-            capturedLogs={targetWebRequests}
-            onClose={() => setShowF12Inspector(false)}
-            onSyncUpdate={({ synced, count, url }) => {
-              setRuntimeResourceCount(count);
-              if (synced && synced.length > 0) {
-                const detectedPackages = synced
-                  .filter((r) => r.detectedPackage && r.detectedPackage.name)
-                  .map((r) => r.detectedPackage);
-                setRuntimePackageCount(detectedPackages.length);
-                if (!targetWebUrl && url) setTargetWebUrl(url);
-
-                // Tạo CycloneDX SBOM từ luồng live stream nếu chưa có
-                const components = detectedPackages.map((p) => ({
-                  type: "library",
-                  name: p.name,
-                  version: p.version || "1.0.0",
-                  purl: "pkg:npm/" + p.name + "@" + (p.version || "1.0.0"),
-                }));
-                const dynamicSbom = {
-                  bomFormat: "CycloneDX",
-                  specVersion: "1.4",
-                  components: components,
-                };
-                setRuntimeSbomJson(JSON.stringify(dynamicSbom, null, 2));
-                setRuntimeSbomReady(true);
-              }
-            }}
-          />
-        </div>
+      {matchReport && staticGraph && runtimeGraph && (
+        <DependencyComparison key={`${sourceId}/${runtime.sessionId}`} staticGraph={staticGraph} runtimeGraph={runtimeGraph}
+          report={matchReport} selection={selection} onSelect={setSelection} />
       )}
 
       {/* THẺ TỔNG HỢP KẾT QUẢ THEO CHUẨN POC */}
@@ -826,8 +659,8 @@ export default function ReconciliationPage() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Số Tài Nguyên Runtime">
-            Tài Nguyên Runtime
+          <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Số gói nhận diện trong SBOM runtime">
+            Gói runtime
           </div>
           <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", marginTop: 2 }}>
             {summary.runtimeResourceCount}
@@ -1115,7 +948,10 @@ export default function ReconciliationPage() {
                           whiteSpace: "normal",
                         }}
                       >
-                        {item.component || "—"}
+                        <button type="button" onClick={() => setSelection(item)}
+                          style={{ color: "var(--color-primary)", background: "none", border: 0, padding: 0, textAlign: "start", textDecoration: "underline", overflowWrap: "anywhere", cursor: "pointer" }}>
+                          {item.component}
+                        </button>
                       </td>
 
                       <td

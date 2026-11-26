@@ -1,0 +1,37 @@
+.dialog {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.dialog::backdrop { background: rgb(15 23 42 / 65%); }
+
+.header {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  max-height: min(70dvh, 38rem);
+  padding: 1rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.body dt { font-weight: 700; }
+.body dd { margin: 0 0 0.6rem; }
