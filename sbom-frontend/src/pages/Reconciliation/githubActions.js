@@ -13,6 +13,9 @@ export async function github(repo, endpoint, token, options = {}) {
     }
   });
   const data = await response.json().catch(() => ({}));
+  if (response.status === 403 && data.message?.includes("personal access token")) {
+    throw Error("GitHub từ chối quyền của token trên repo này. Để thử dự án công khai, chọn Repo công khai rồi dán link. Với CI có sẵn, kiểm tra repo và quyền Actions của token.");
+  }
   if (!response.ok) throw Error("GitHub " + response.status + " · " + (data.message || response.statusText));
   return data;
 }

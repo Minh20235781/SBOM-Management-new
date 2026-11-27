@@ -1,0 +1,16 @@
+**
+!scripts/
+!scripts/repo-runtime/
+!scripts/repo-runtime/capture.sh
+!scripts/repo-runtime/prepare.cjs
+!scripts/runtime-collector/
+!scripts/runtime-collector/package*.json
+!scripts/runtime-collector/cdp-scanner.js
+!scripts/runtime-collector/export-session.mjs
+!scripts/nodejs-runtime-collector/
+!scripts/nodejs-runtime-collector/session-agent.cjs
+!sbom-frontend/
+!sbom-frontend/src/
+!sbom-frontend/src/pages/
+!sbom-frontend/src/pages/Reconciliation/
+!sbom-frontend/src/pages/Reconciliation/runtimeEvidence.js

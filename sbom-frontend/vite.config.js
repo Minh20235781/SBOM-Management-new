@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { repositoryMiddleware } from '../scripts/repo-runtime/server.mjs'
 
 // Vite dev server proxies every /api/* request to the Spring
 // backend on :8080. Without this, requests to /api/* would
@@ -16,7 +17,10 @@ import react from '@vitejs/plugin-react'
 // For production builds, the same proxies are expected to be
 // configured at the reverse-proxy level (nginx, Caddy, etc).
 export default defineConfig({
- plugins: [react()],
+ plugins: [react(), {name:'repository-runtime',
+   configureServer(server) { server.middlewares.use(repositoryMiddleware) },
+   configurePreviewServer(server) { server.middlewares.use(repositoryMiddleware) }
+ }],
  server: {
  proxy: {
  '/api': {

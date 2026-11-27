@@ -13,6 +13,7 @@ import { compareDependencyGraphs, readDependencyGraph } from "./compareDependenc
 import { readBrowserLog, attachBackend } from "./runtimeEvidence";
 import Button from "../../components/shared/Button";
 import RuntimeWorkflow from "./RuntimeWorkflow";
+import RepositoryCapture from "./RepositoryCapture";
 
 import styles from "./ReconciliationPage.module.css";
 
@@ -62,7 +63,7 @@ export default function ReconciliationPage() {
   const [isRunningScan, setIsRunningScan] = useState(false);
   const [runtime, setRuntime] = useState(null);
   const [showF12Inspector, setShowF12Inspector] = useState(false);
-  const [mode,setMode] = useState("file");
+  const [mode,setMode] = useState("repo");
   const busy = loading || isRunningScan;
   const runtimeSbomReady = !!runtime;
   const targetWebRequests = runtime?.auditLog?.capturedNetworkRequests || [];
@@ -128,6 +129,20 @@ export default function ReconciliationPage() {
       handleSourceChange(record.id);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
+  }
+
+  async function useRepositoryResult({repo, staticContent, runtime: log}) {
+    readDependencyGraph(JSON.parse(staticContent));
+    const record = await saveNormalizedSbom(staticContent, repo + " · npm lockfile");
+    let next = readBrowserLog(log);
+    for (const inventory of Object.values(log.backendEvidence || {})) {
+      next = attachBackend(next, inventory, record.id);
+    }
+    setCatalog(records => [record, ...records.filter(item => item.id !== record.id)]);
+    handleSourceChange(record.id);
+    setRuntime(next);
+    setTargetWebUrl(next.targetUrl);
+    setShowF12Inspector(true);
   }
 
   const handleRunRuntimeScan = async () => {
@@ -379,21 +394,22 @@ export default function ReconciliationPage() {
         <section className={styles.inputCard}>
           <header className={styles.cardHeader}><h2>Nguồn 2 · Runtime</h2>
             <div className={styles.switcher} role="group" aria-label="Nguồn dữ liệu runtime">
-              {[["file","Tải log"],["url","Thu từ URL"],["job","Workflow"]].map(([value,label]) =>
+              {[["repo","Repo công khai"],["url","Website"],["file","Tải log"],["job","CI có sẵn"]].map(([value,label]) =>
                 <button key={value} type="button" disabled={busy} aria-pressed={mode === value} onClick={() => {
                   if (mode === value) return;
                   setMode(value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
                 }}>{label}</button>)}
             </div>
           </header>
-          {mode === "file" ? <FilePicker title="Log runtime" detail={runtime?.fileName || "Một tệp JSON cho cả frontend và backend"} label={runtime ? "Đổi log" : "Chọn log"} disabled={busy || !source} onChange={e => importEvidence(e,false)} />
+          {mode === "repo" ? <RepositoryCapture onStart={()=>{setRuntime(null);setShowF12Inspector(false);resetComparison();setError(null);}} onResult={useRepositoryResult} setBusy={setLoading} />
+          : mode === "file" ? <FilePicker title="Log runtime" detail={runtime?.fileName || "Một tệp JSON cho cả frontend và backend"} label={runtime ? "Đổi log" : "Chọn log"} disabled={busy || !source} onChange={e => importEvidence(e,false)} />
           : mode === "job" ? <RuntimeWorkflow
             onStart={() => {setRuntime(null);setShowF12Inspector(false);resetComparison();}}
             onImport={<FilePicker title="Log từ GitHub Actions" detail={source ? "runtime-log.json" : "Chọn SBOM tĩnh ở Nguồn 1 trước khi nhập log."}
               label="Chọn log" disabled={busy || !source} onChange={e => importEvidence(e,false)} />} /> : <div className={styles.capture}><Input type="url" aria-label="URL của dự án" placeholder="http://localhost:3000" value={targetWebUrl} disabled={busy} onChange={e => {
               setTargetWebUrl(e.target.value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
             }} /><Button disabled={busy || !source || !targetWebUrl.trim()} onClick={handleRunRuntimeScan}>{isRunningScan ? "Đang thu…" : "Thu phiên"}</Button></div>}
-          {!runtime && mode !== "job" && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
+          {!runtime && (mode === "file" || mode === "url") && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
           {runtime && <>
             <p className={styles.meta}>{runtimeResourceCount} tài nguyên F12 · {runtimePackageCount} gói · {Object.keys(runtime.backendEvidence || {}).length} tiến trình backend đã ghép</p>
             <p className={styles.meta}>{runtime.targetUrl} · {runtime.sessionId} · {runtime.auditLog?.observation?.scenario}</p>
