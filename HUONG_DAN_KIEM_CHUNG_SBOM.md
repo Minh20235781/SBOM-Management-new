@@ -35,14 +35,14 @@ Trên trang **Provenance**, nạp SBOM gốc và lưu bản làm giàu. Có th�
 
 Trên Linux/macOS, đặt SBOM_STATIC_FILE và SBOM_EVIDENCE_DIR thành đường dẫn tuyệt đối. Thêm `--require "/đường/dẫn/session-agent.cjs"` vào NODE_OPTIONS của lệnh npm hoặc pnpm. Node truyền preload xuống tiến trình con thừa kế môi trường. CommonJS dùng sự kiện nạp thành công qua require. Native ESM dùng load hook khi Node cung cấp registerHooks, ví dụ Node 24. TypeScript được quan sát qua module đầu ra hoặc loader mà ứng dụng sử dụng. [Node.js module hooks](https://nodejs.org/api/module.html#moduleregisterhooksoptions)
 
-3. Mở trang **Reconciliation**, tải SBOM chuẩn hóa, nhập URL và nhấn **Run** để ghi lượt tải trang. Với một thao tác tương tác như đăng nhập, chạy lệnh sau từ repo công cụ ở terminal thứ hai. Trong cửa sổ Chrome vừa mở, thực hiện thao tác trong 60 giây rồi nhập tệp qua **Hoặc tải log runtime đã xuất**. Đặt `SBOM_SCENARIO` thành tên thao tác, `SBOM_BUILD_ID` thành mã build frontend đang đo nếu biết. Wrapper backend nhận `-BuildId` hoặc lấy commit Git của thư mục chạy. Báo cáo JSON lưu cả thông tin phiên và các request dùng để ghép.
+3. Mở trang **Reconciliation**, tải SBOM chuẩn hóa, nhập URL và nhấn **Run** để ghi lượt tải trang. Với một thao tác tương tác như đăng nhập, chạy lệnh sau từ repo công cụ ở terminal thứ hai. Trong cửa sổ Chrome vừa mở, thực hiện thao tác trong 60 giây rồi nhập tệp qua **Tải log → Chọn log**. Đặt `SBOM_SCENARIO` thành tên thao tác, `SBOM_BUILD_ID` thành mã build frontend đang đo nếu biết. Wrapper backend nhận `-BuildId` hoặc lấy commit Git của thư mục chạy. Báo cáo JSON lưu cả thông tin phiên và các request dùng để ghép.
 
 ```powershell
 $env:SBOM_SCENARIO = 'Đăng nhập tài khoản thử'
 node scripts/runtime-collector/cdp-scanner.js http://localhost:3000 browser.json --interactive
 ```
 
-4. Chọn **Ghép log backend cùng phiên** và nhập file `backend-*.json` của tiến trình xử lý request. Có thể chọn nhiều file của nhiều worker có tham gia. CDP lấy mã ngẫu nhiên từ response header `x-sbom-request-id`. Công cụ đối chiếu với mã của request hoàn thành trong log backend, kiểm tra SHA-256 của SBOM gốc và chỉ lấy gói nạp tới thời điểm kết thúc request chung cuối cùng. Một HTTP response từ đúng backend cần đến được trình duyệt. Proxy phải giữ header nếu chuyển tiếp response. Với tác vụ nền chạy sau response, thực hiện thêm một request tới backend sau khi tác vụ hoàn tất. Khi chạy lại một kịch bản, khởi động tiến trình mới để tránh module lưu trong cache từ phiên trước.
+4. Chọn **Terminal backend → Bổ sung log backend rời** và nhập file `backend-*.json` của tiến trình xử lý request. Có thể chọn nhiều file của nhiều worker có tham gia. CDP lấy mã ngẫu nhiên từ response header `x-sbom-request-id`. Công cụ đối chiếu với mã của request hoàn thành trong log backend, kiểm tra SHA-256 của SBOM gốc và chỉ lấy gói nạp tới thời điểm kết thúc request chung cuối cùng. Một HTTP response từ đúng backend cần đến được trình duyệt. Proxy phải giữ header nếu chuyển tiếp response. Với tác vụ nền chạy sau response, thực hiện thêm một request tới backend sau khi tác vụ hoàn tất. Khi chạy lại một kịch bản, khởi động tiến trình mới để tránh module lưu trong cache từ phiên trước.
 5. Nhấn đối sánh, lọc RUNTIME_ONLY để rà soát gói ngoài danh mục. Xuất log runtime JSON giữ cả bằng chứng backend đã ghép. Xuất báo cáo JSON hoặc CSV để bàn giao. RUNTIME_ONLY có thể xuất hiện do phạm vi SBOM, CDN, plugin hoặc công cụ dev. Kiểm tra lại trên bản build sản xuất trước khi kết luận về phần mềm giao khách hàng.
 
 ## Cách đọc giới hạn quan sát
@@ -63,3 +63,5 @@ node scripts/runtime-collector/cdp-scanner.js http://localhost:3000 browser.json
 | Ứng dụng Node độc lập | Chrome headless nhận response từ server thật và ghép được module CommonJS, ESM. Các ca sai SHA-256 hoặc thiếu request chung bị từ chối. Chạy riêng wrapper với npm và pnpm đều tạo được log từ server. |
 
 Trong khung **Terminal backend**, Chrome và Edge hỗ trợ chọn file log đang ghi và cập nhật các lần nạp module cùng HTTP request. Bấm **Ghép bản ghi này vào phiên** để kiểm tra SHA-256 và request trước khi đối sánh. Có thể nhập trực tiếp log đã xuất thay cho thu URL mới.
+
+Nếu log runtime xuất ra đã có backendEvidence của phiên, Nguồn 2 chỉ cần một file. Chọn **Thu từ URL** để thu một phiên trình duyệt mới.

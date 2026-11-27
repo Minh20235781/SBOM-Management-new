@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../../components/shared/PageHeader";
 import Spinner from "../../components/shared/Spinner";
@@ -11,6 +11,7 @@ import { getOriginalSbom, saveNormalizedSbom, listNormalizedSboms, listSbomCompa
 import DependencyComparison from "./DependencyComparison";
 import { compareDependencyGraphs, readDependencyGraph } from "./compareDependencyGraphs";
 import { readBrowserLog, attachBackend } from "./runtimeEvidence";
+import Button from "../../components/shared/Button";
 import RuntimeTerminal from "./RuntimeTerminal";
 import styles from "./ReconciliationPage.module.css";
 
@@ -35,6 +36,15 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function FilePicker({ title, detail, label, disabled, onChange, multiple = false }) {
+  const input = useRef(null);
+  return <div className={styles.filePicker}>
+    <div><strong>{title}</strong><small>{detail}</small></div>
+    <input ref={input} type="file" accept=".json,application/json" multiple={multiple} disabled={disabled} hidden aria-label={title} onChange={onChange} />
+    <Button variant="secondary" disabled={disabled} onClick={() => input.current?.click()}>{label}</Button>
+  </div>;
+}
+
 export default function ReconciliationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -51,6 +61,8 @@ export default function ReconciliationPage() {
   const [isRunningScan, setIsRunningScan] = useState(false);
   const [runtime, setRuntime] = useState(null);
   const [showF12Inspector, setShowF12Inspector] = useState(false);
+  const [mode,setMode] = useState("file");
+  const busy = loading || isRunningScan;
   const runtimeSbomReady = !!runtime;
   const targetWebRequests = runtime?.auditLog?.capturedNetworkRequests || [];
   const runtimePackageCount = runtime?.componentCount ?? 0;
@@ -161,7 +173,7 @@ export default function ReconciliationPage() {
         const data = JSON.parse(await file.text());
         if (backend) next = attachBackend(next, data, hash);
         else {
-          next = readBrowserLog(data);
+          next = { ...readBrowserLog(data), fileName: file.name };
           for (const inventory of Object.values(data.backendEvidence || {})) next = attachBackend(next, inventory, hash);
         }
       }
@@ -347,280 +359,47 @@ export default function ReconciliationPage() {
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* HAI NGUỒN ĐẦU VÀO */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
-          gap: 20,
-          marginTop: 20,
-          marginBottom: 20,
-        }}
-      >
-        {/* SBOM tĩnh đã lưu từ Provenance */}
-        <div
-          className={styles.inputCard}
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-default)",
-            borderRadius: "var(--radius-lg)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: "var(--font-md)", color: "var(--text-primary)" }}>
-                Nguồn 1: SBOM Cơ Sở
-              </div>
-              <span
-                style={{
-                  fontSize: "var(--font-xs)",
-                  padding: "2px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(59, 130, 246, 0.15)",
-                  color: "#3b82f6",
-                  fontWeight: 700,
-                }}
-              >
-                File Tĩnh
-              </span>
+      <div className={styles.sources}>
+        <section className={styles.inputCard}>
+          <header className={styles.cardHeader}><h2>Nguồn 1 · SBOM tĩnh</h2><Link to="/provenance">Chuẩn hóa SBOM</Link></header>
+          <FilePicker title="SBOM đã chuẩn hóa" detail={source ? source.name : "Tệp CycloneDX JSON"} label={source ? "Đổi SBOM" : "Chọn SBOM"} disabled={busy} onChange={uploadStatic} />
+          {source && <p className={styles.meta}>{source.count} thành phần tĩnh</p>}
+          {source?.originalHash && <Button variant="secondary" size="sm" onClick={async () => {
+            try { const blob = await getOriginalSbom(source.originalHash); downloadBlob(blob, blob.name || "sbom-original.json"); }
+            catch (err) { setError(err.message); }
+          }}>Tải lại SBOM gốc</Button>}
+          {source && savedComparisons.length > 0 && <Field label="Phiên đã lưu" htmlFor="saved-session">
+            <Select id="saved-session" value={runtime?.id || ""} onChange={e => handleRestoreComparison(e.target.value)} disabled={busy} style={sourceSelectStyle}>
+              <option value="" disabled>Chọn phiên</option>
+              {savedComparisons.filter(r => r.staticId === sourceId).map(r => <option key={r.id} value={r.id}>{new Date(r.scannedAt).toLocaleString("vi-VN")} · {r.targetUrl}</option>)}
+            </Select>
+          </Field>}
+        </section>
+        <section className={styles.inputCard}>
+          <header className={styles.cardHeader}><h2>Nguồn 2 · Runtime</h2>
+            <div className={styles.switcher} role="group" aria-label="Nguồn dữ liệu runtime">
+              {[["file","Tải log"],["url","Thu từ URL"]].map(([value,label]) =>
+                <button key={value} type="button" disabled={busy} aria-pressed={mode === value} onClick={() => {
+                  if (mode === value) return;
+                  setMode(value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
+                }}>{label}</button>)}
             </div>
-
-            <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              <label>Tải SBOM tĩnh đã chuẩn hóa
-                <input type="file" accept=".json,application/json" disabled={loading || isRunningScan} onChange={uploadStatic} />
-              </label>
-              <Link to="/provenance">Chuẩn hóa SBOM</Link>
-            </div>
-            {source?.originalHash && <button onClick={async () => {
-              try {
-                const blob = await getOriginalSbom(source.originalHash);
-                downloadBlob(blob, blob.name || "sbom-original.json");
-              } catch (err) { setError(err.message); }
-            }}>Tải lại SBOM gốc</button>}
-            {source && savedComparisons.some((record) => record.staticId === sourceId) && (
-              <Field label="Mở phiên đối sánh đã lưu" htmlFor="reconciliation-saved-session">
-                <Select id="reconciliation-saved-session" value={runtime?.id || ""} title={runtime?.id ? runtime.targetUrl : undefined}
-                  disabled={loading || isRunningScan} onChange={(event) => handleRestoreComparison(event.target.value)} style={sourceSelectStyle}>
-                  <option value="" disabled>Chọn phiên</option>
-                  {savedComparisons.filter((record) => record.staticId === sourceId).map((record) => (
-                    <option key={record.id} value={record.id}>{new Date(record.scannedAt).toLocaleString("vi-VN")} · {record.targetUrl} · {record.sessionId}</option>
-                  ))}
-                </Select>
-              </Field>
-            )}
-          </div>
-
-          <div
-            style={{
-              padding: "10px 12px",
-              background: "var(--bg-secondary)",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-default)",
-              fontSize: "var(--font-xs)",
-            }}
-          >
-            <div style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-              SBOM đã chọn <span style={{ color: "#60a5fa", overflowWrap: "anywhere" }}>{source?.name || "Chưa chọn"}</span>
-            </div>
-            <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-              Số thành phần <b style={{ color: "#10b981" }}>{source?.count ?? 0}</b>
-            </div>
-          </div>
-        </div>
-
-        {/* Nguồn 2: Dữ liệu quan sát Runtime duy nhất từ link web qua nút Run */}
-        <div
-          className={styles.inputCard}
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-default)",
-            borderRadius: "var(--radius-lg)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: "var(--font-md)", color: "var(--text-primary)" }}>
-                Nguồn 2: Dữ Liệu Quan Sát Runtime
-              </div>
-              <span
-                style={{
-                  fontSize: "var(--font-xs)",
-                  padding: "2px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(16, 185, 129, 0.15)",
-                  color: "#10b981",
-                  fontWeight: 700,
-                }}
-              >
-                Chromium CDP
-              </span>
-            </div>
-
-            <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Nhập URL để thu phía trình duyệt. Để quan sát backend, chạy ứng dụng với agent hoặc tải log đã ghép từ phiên trước.
-            </div>
-
-            {/* Ô NHẬP LINK WEB VÀ NÚT RUN CẠNH NHAU */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
-              <Input
-                type="url"
-                aria-label="URL của dự án"
-                value={targetWebUrl}
-                disabled={isRunningScan || loading}
-                onChange={(e) => {
-                  setTargetWebUrl(e.target.value);
-                  setRuntime(null);
-                  setShowF12Inspector(false);
-                  setError(null);
-                  resetComparison();
-                }}
-                placeholder="http://localhost:3000"
-                style={{ flex: "1 1 min(100%, 10rem)", minWidth: 0, paddingInline: "min(var(--space-3), 10%)" }}
-              />
-
-              {/* NÚT RUN KÈM NÉT TAM GIÁC CHẠY BẰNG CSS BORDER */}
-              <button
-                onClick={handleRunRuntimeScan}
-                disabled={isRunningScan || loading || !source || !targetWebUrl.trim()}
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: "var(--radius-md)",
-                  border: "none",
-                  background: "#16a34a",
-                  color: "#ffffff",
-                  fontWeight: 800,
-                  fontSize: "var(--font-sm)",
-                  cursor: isRunningScan ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  boxShadow: "0 2px 6px rgba(22, 163, 74, 0.4)",
-                  opacity: isRunningScan ? 0.7 : 1,
-                }}
-              >
-                {/* NÉT TAM GIÁC CHẠY VẼ BẰNG CSS BORDER */}
-                <span
-                  style={{
-                    width: 0,
-                    height: 0,
-                    borderTop: "5px solid transparent",
-                    borderBottom: "5px solid transparent",
-                    borderLeft: "8px solid #ffffff",
-                    display: "inline-block",
-                    marginRight: 6,
-                  }}
-                />
-                {isRunningScan ? "Đang Chạy..." : "Run"}
-              </button>
-            </div>
-
-            <label>Hoặc tải log runtime đã xuất (.json) <input type="file" accept=".json" disabled={!source || loading || isRunningScan} onChange={e => importEvidence(e, false)} /></label>
-            <label>Ghép log backend cùng phiên <input type="file" multiple accept=".json" disabled={!runtime || loading || isRunningScan} onChange={e => importEvidence(e, true)} /></label>
-            {runtime && <p>Tiến trình backend đã đối chiếu request: {Object.keys(runtime.backendEvidence || {}).length}</p>}
-            {runtime?.auditLog?.observation && <p>
-              {runtime.auditLog.observation.scenario || "Log chưa ghi thao tác"} · Build trình duyệt: {runtime.auditLog.observation.buildId || "chưa ghi nhận"}
-            </p>}
-            {runtime?.omittedServerCount > 0 && <p>Log cũ có dữ liệu server thiếu liên kết request. Chỉ dùng phần trình duyệt.</p>}
-            {/* Thanh tiến trình chạy link web Nguồn 2 */}
-            {isRunningScan && (
-              <p role="status">Đang thu thập dữ liệu từ ứng dụng bằng Chromium CDP…</p>
-            )}
-          </div>
-
-          {/* TRẠNG THÁI RUNTIME SBOM SAU KHI QUÉT */}
-          <div
-            style={{
-              padding: "10px 12px",
-              background: "var(--bg-secondary)",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-default)",
-              fontSize: "var(--font-xs)",
-            }}
-          >
-            {runtimeSbomReady ? (
-              <div>
-                <div style={{ color: "#10b981", fontWeight: 700, marginBottom: 4 }}>
-                  SBOM runtime đã sẵn sàng
-                </div>
-                <div style={{ color: "var(--text-secondary)", display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
-                  <span>Số tài nguyên F12: <b style={{ color: "var(--text-primary)" }}>{runtimeResourceCount}</b></span>
-                  <span>Gói nhận diện được: <b style={{ color: "var(--text-primary)" }}>{runtimePackageCount}</b></span>
-                </div>
-                <p style={{ overflowWrap: "anywhere" }}>{runtime.targetUrl} · {runtime.sessionId} · {new Date(runtime.scannedAt).toLocaleString("vi-VN")}</p>
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <button
-                    onClick={handleExportRuntimeLog}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid #10b981",
-                      background: "rgba(16, 185, 129, 0.1)",
-                      color: "#10b981",
-                      fontSize: "var(--font-xs)",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Xuất File Log Runtime JSON
-                  </button>
-
-                  <button
-                    onClick={() => setShowF12Inspector(!showF12Inspector)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid #3b82f6",
-                      background: "rgba(59, 130, 246, 0.1)",
-                      color: "#60a5fa",
-                      fontSize: "var(--font-xs)",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {showF12Inspector ? "Ẩn Bảng F12 Inspector" : "Xem Bảng F12 Inspector"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ color: "var(--text-muted)" }}>
-                Chưa có phiên runtime cho URL đã nhập.
-              </div>
-            )}
-          </div>
-        </div>
+          </header>
+          {mode === "file" ? <FilePicker title="Log runtime" detail={runtime?.fileName || "Một tệp JSON cho cả frontend và backend"} label={runtime ? "Đổi log" : "Chọn log"} disabled={busy || !source} onChange={e => importEvidence(e,false)} />
+          : <div className={styles.capture}><Input type="url" aria-label="URL của dự án" placeholder="http://localhost:3000" value={targetWebUrl} disabled={busy} onChange={e => {
+              setTargetWebUrl(e.target.value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
+            }} /><Button disabled={busy || !source || !targetWebUrl.trim()} onClick={handleRunRuntimeScan}>{isRunningScan ? "Đang thu…" : "Thu phiên"}</Button></div>}
+          {!runtime && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
+          {runtime && <>
+            <p className={styles.meta}>{runtimeResourceCount} tài nguyên F12 · {runtimePackageCount} gói · {Object.keys(runtime.backendEvidence || {}).length} tiến trình backend đã ghép</p>
+            <p className={styles.meta}>{runtime.targetUrl} · {runtime.sessionId} · {runtime.auditLog?.observation?.scenario}</p>
+            {runtime.omittedServerCount > 0 && <p role="status">Dữ liệu server cũ thiếu liên kết request. Phiên này dùng quan sát trình duyệt.</p>}
+            <div className={styles.actions}><Button size="sm" variant="secondary" onClick={handleExportRuntimeLog}>Xuất log</Button>
+            <Button size="sm" variant="secondary" onClick={() => setShowF12Inspector(!showF12Inspector)}>{showF12Inspector ? "Ẩn F12 Inspector" : "Mở F12 Inspector"}</Button></div>
+          </>}
+        </section>
       </div>
-
-      {/* NÚT THỰC HIỆN ĐỐI SÁNH SBOM */}
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <button
-          onClick={handleExecuteMatch}
-          disabled={loading || isRunningScan || !runtimeSbomReady || !source1Content}
-          style={{
-            padding: "12px 36px",
-            borderRadius: "var(--radius-lg)",
-            border: "none",
-            background: runtimeSbomReady && source1Content ? "var(--color-primary)" : "#374151",
-            color: runtimeSbomReady && source1Content ? "#ffffff" : "#9ca3af",
-            fontWeight: 800,
-            fontSize: "var(--font-md)",
-            cursor: loading || !runtimeSbomReady || !source1Content ? "not-allowed" : "pointer",
-            boxShadow: runtimeSbomReady && source1Content ? "0 4px 14px rgba(37, 99, 235, 0.4)" : "none",
-          }}
-        >
-          {loading ? "Đang Đối Sánh Dữ Liệu..." : "Thực Hiện Đối Sánh SBOM"}
-        </button>
-
-        {!runtimeSbomReady && (
-          <div style={{ fontSize: "var(--font-xs)", color: "var(--text-muted)", marginTop: 8 }}>
-            Nhập URL và bấm Run hoặc tải file log runtime để đối sánh.
-          </div>
-        )}
-      </div>
+      <div className={styles.submit}><Button size="lg" disabled={busy || !runtimeSbomReady || !source1Content} onClick={handleExecuteMatch}>Đối sánh SBOM</Button></div>
 
       <div className={styles.inspectors}>
       {showF12Inspector && runtime && (
@@ -634,7 +413,8 @@ export default function ReconciliationPage() {
         </div>
       )}
 
-      {source && <RuntimeTerminal key={sourceId} inventories={runtime?.backendEvidence} onAttach={runtime && !loading && !isRunningScan ? data => {
+      {source && <RuntimeTerminal extra={runtime && <details><summary>Bổ sung log backend rời</summary>
+        <FilePicker title="Log backend cùng phiên" detail="Dùng khi phiên hiện tại cần bổ sung tiến trình máy chủ." label="Chọn log backend" multiple disabled={busy} onChange={e => importEvidence(e,true)} /></details>} key={sourceId} inventories={runtime?.backendEvidence} onAttach={runtime && !loading && !isRunningScan ? data => {
         try {
           const hash = JSON.parse(source.content).metadata?.properties?.find(p => p.name === "devops.provenance.file_sha256")?.value || source.id;
           setRuntime(attachBackend(runtime, data, hash));

@@ -8,7 +8,7 @@ function lines(log) {
     .map(([time, message]) => `${time}  ${message}`).join("\n");
 }
 
-export default function RuntimeTerminal({ inventories, onAttach }) {
+export default function RuntimeTerminal({ inventories, onAttach, extra }) {
   const [handle, setHandle] = useState(null);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
@@ -44,6 +44,7 @@ export default function RuntimeTerminal({ inventories, onAttach }) {
   const attached = Object.values(inventories || {});
   return <section className={styles.terminal}>
     <h3>Terminal backend</h3>
+    {extra}
     {window.showOpenFilePicker && <button type="button" onClick={watch}>Theo dõi file log đang ghi</button>}
     {handle && <button type="button" onClick={() => setHandle(null)}>Dừng theo dõi</button>}
     {error && <p role="alert">{error}</p>}

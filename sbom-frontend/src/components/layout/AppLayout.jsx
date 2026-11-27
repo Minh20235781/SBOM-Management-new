@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import styles from "./AppLayout.module.css";
@@ -14,9 +15,15 @@ import styles from "./AppLayout.module.css";
  * in the layout-route pattern).
  */
 export default function AppLayout() {
+ const [navigationOpen, setNavigationOpen] = useState(false);
  return (
  <div className={styles.layout}>
- <Sidebar />
+ <button className={styles.menuToggle} aria-controls="app-navigation" aria-expanded={navigationOpen}
+   onClick={() => setNavigationOpen(!navigationOpen)}>{navigationOpen ? "Đóng menu" : "☰ Menu"}</button>
+ <div id="app-navigation" className={navigationOpen ? styles.openNavigation : styles.navigation}
+   onClick={event => { if (event.target.closest("a")) setNavigationOpen(false); }}>
+   <Sidebar />
+ </div>
  <div className={styles.main}>
  <Topbar />
  <div className={styles.content}>
