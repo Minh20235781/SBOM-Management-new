@@ -1,0 +1,45 @@
+name: Runtime SBOM demo
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install demo and collector
+        run: |
+          npm install --prefix test-apps/sample-app --no-audit --no-fund
+          npm ci --prefix scripts/runtime-collector
+      - name: Capture browser and backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SBOM_STATIC_FILE="$GITHUB_WORKSPACE/test-apps/sample-app/sbom-static.json"
+          export SBOM_BUILD_ID="$GITHUB_SHA"
+          export SBOM_EVIDENCE_DIR="$RUNNER_TEMP/backend-evidence"
+          export CHROME_BIN="$(command -v google-chrome)"
+          export PORT=4000
+          mkdir -p "$SBOM_EVIDENCE_DIR" results
+          node --require ./scripts/nodejs-runtime-collector/session-agent.cjs test-apps/sample-app/server.js &
+          backend_pid=$!
+          trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
+          curl --silent --show-error --fail --retry 25 --retry-connrefused --retry-delay 1 http://127.0.0.1:4000/ --output /dev/null
+          node scripts/runtime-collector/cdp-scanner.js http://127.0.0.1:4000/ "$RUNNER_TEMP/browser.json"
+          node scripts/runtime-collector/export-session.mjs "$RUNNER_TEMP/browser.json" "$SBOM_EVIDENCE_DIR" "$SBOM_STATIC_FILE" results/runtime-log.json
+          cp "$SBOM_STATIC_FILE" results/sbom-static.json
+      - name: Upload SBOM and combined runtime log
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-runtime-demo
+          path: results/*.json
+          if-no-files-found: error
+          retention-days: 7

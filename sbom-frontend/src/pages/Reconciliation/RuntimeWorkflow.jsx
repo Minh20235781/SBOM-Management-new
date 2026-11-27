@@ -77,9 +77,16 @@ export default function RuntimeWorkflow({ digest, onStart, onResult }) {
     collecting?(step==="browser"?"Đang thu":"Hoàn tất"):step==="done"?"Hoàn tất":"Chờ",
     step==="merge"?"Đang ghép":step==="done"?"Hoàn tất":"Chờ"];
   return <section className={styles.workflow}>
+    <details><summary>Chạy thử trên GitHub Actions</summary>
+      <p>Mở <a href="https://github.com/Minh20235781/SBOM-Management-new/actions/workflows/runtime-demo.yml" target="_blank" rel="noreferrer">Runtime SBOM demo</a>, chọn Run workflow trên nhánh main. GitHub sẽ chạy ứng dụng mẫu và thu cả frontend lẫn backend.</p>
+      <p>Khi job hoàn tất, tải và giải nén sbom-runtime-demo. Dùng sbom-static.json để chuẩn hóa cho Nguồn 1 và nhập runtime-log.json ở Nguồn 2.</p>
+    </details>
     <label>Lệnh backend<Input value={command} disabled={running||step==="starting"} onChange={e=>setCommand(e.target.value)} /></label>
     <details><summary>Cấu hình runner trên máy phát triển</summary>
-      <p>Trước khi chạy Vite, đặt SBOM_WORKFLOW_DIR trỏ tới thư mục chứa package.json và SBOM_STATIC_FILE trỏ tới SBOM gốc. Runner hỗ trợ script dev và start của npm hoặc pnpm.</p></details>
+      <p>Nếu chạy backend trên máy này, đặt hai biến trong cùng cửa sổ PowerShell trước khi khởi động Vite. Thay các đường dẫn ví dụ bằng vị trí trên máy bạn.</p>
+      <pre>{String.raw`$env:SBOM_WORKFLOW_DIR = 'C:\KickZone\apps\api'
+$env:SBOM_STATIC_FILE = 'C:\KickZone\sbom-original.json'`}</pre>
+      <p>Biến đầu chỉ thư mục chứa package.json có script dev hoặc start. Biến thứ hai chỉ tệp SBOM gốc dùng để tính SHA-256.</p></details>
     <label>URL ứng dụng<Input type="url" value={url} disabled={collecting} onChange={e=>setUrl(e.target.value)} /></label>
     <div className={styles.actions}>
       <Button disabled={!digest||running||step==="starting"} onClick={start}>Chạy workflow</Button>
