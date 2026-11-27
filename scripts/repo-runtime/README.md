@@ -1,6 +1,6 @@
 # Thu runtime từ repo GitHub công khai
 
-Trong trang Đối sánh, chọn **Repo công khai**, dán URL rồi bấm **Thu runtime từ repo**. Có thể thử `https://github.com/heroku/node-js-getting-started`. Với repo có nhiều ứng dụng, dán URL thư mục GitHub dạng `/tree/main/apps/api` nếu thư mục đó có package.json và package-lock.json riêng.
+Trong trang Đối sánh, dán URL vào **Link repo GitHub hoặc website** rồi bấm **Thu runtime**. Có thể thử `https://github.com/heroku/node-js-getting-started`. Với repo có nhiều ứng dụng, dán URL thư mục GitHub dạng `/tree/main/apps/api` nếu thư mục đó có package.json và package-lock.json riêng.
 
 Máy chủ cần Linux containers và Docker CLI. Từ gốc repo công cụ, build image khi cài đặt hoặc cập nhật bộ thu:
 
@@ -12,4 +12,6 @@ Vite dev và preview phục vụ sẵn endpoint. Khi triển khai frontend tĩnh
 
 Runner lấy commit công khai và các tarball có integrity trong npm lockfile v2/v3. Sau khi ngắt mạng, runner cài từ cache, tạo CycloneDX bằng npm, khởi động script dev hoặc start với Node preload, mở Chromium tại đường dẫn / và ghép bằng chứng theo request ID và SHA-256 của SBOM tĩnh. Với ứng dụng thiếu version, phiên bản thành phần gốc trong SBOM mang hậu tố git và mã commit. Các gói phụ thuộc giữ phiên bản từ lockfile.
 
-Mỗi phiên có một container dùng một lần. Runner giới hạn một phiên đồng thời, 1 CPU, 2 GiB RAM và bốn phút cho toàn phiên. Sau khi ngắt mạng, CDN, database từ xa và các dịch vụ bên ngoài sẽ không truy cập được. Phiên hiện dùng Node 24, thử các cổng 3000, 5173, 4000 và 8080. Những dự án cần pnpm, yarn, postinstall, nhiều dịch vụ hoặc kịch bản nghiệp vụ riêng có thể cung cấp log thu từ CI của dự án. Phiên sandbox phản ánh các module nạp trong kịch bản đã chạy, kể cả công cụ phát triển được nạp bởi script dev.
+Mỗi phiên có một container dùng một lần. Runner giới hạn một phiên đồng thời, 2 CPU, 4 GiB RAM và bốn phút cho toàn phiên. Sau khi ngắt mạng, CDN, database từ xa và các dịch vụ bên ngoài sẽ không truy cập được. Phiên hiện dùng Node 24, thử các cổng 3000, 5173, 4000 và 8080. Những dự án cần pnpm, yarn, postinstall, nhiều dịch vụ hoặc kịch bản nghiệp vụ riêng có thể cung cấp log thu từ CI của dự án. Phiên sandbox phản ánh các module nạp trong kịch bản đã chạy, kể cả công cụ phát triển được nạp bởi script dev.
+
+Với workspace npm, các liên kết nội bộ được đọc từ checkout. Nếu repo dùng script dev:web riêng và thiếu dev/start ở gốc, runner chỉ chạy dịch vụ web. Phạm vi này được ghi vào log. Nếu npm báo ESBOMPROBLEMS, công cụ giữ các phiên bản khóa và hiển thị cảnh báo về quan hệ phụ thuộc chưa xác minh.

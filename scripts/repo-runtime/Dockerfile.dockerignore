@@ -3,6 +3,7 @@
 !scripts/repo-runtime/
 !scripts/repo-runtime/capture.sh
 !scripts/repo-runtime/prepare.cjs
+!scripts/repo-runtime/lock-inventory.cjs
 !scripts/runtime-collector/
 !scripts/runtime-collector/package*.json
 !scripts/runtime-collector/cdp-scanner.js

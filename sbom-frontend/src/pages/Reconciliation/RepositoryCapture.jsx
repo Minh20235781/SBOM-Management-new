@@ -28,8 +28,10 @@ async function collect(url, signal, onStep) {
   return result;
 }
 
-export default function RepositoryCapture({onStart, onResult, setBusy}) {
-  const [url,setUrl]=useState("");
+export default function RepositoryCapture({url, onChange, busy, source, onWebsite, onStart, onResult, setBusy}) {
+  const repo = projectFromUrl(url);
+  const parsed = URL.canParse(url) ? new URL(url) : null;
+  const website = parsed && ["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password && parsed.hostname !== "github.com";
   const [steps,setSteps]=useState([]);
   const [error,setError]=useState("");
   const [running,setRunning]=useState(false);
@@ -37,7 +39,11 @@ export default function RepositoryCapture({onStart, onResult, setBusy}) {
   useEffect(()=>()=>active.current?.abort(),[]);
   async function start(event) {
     event.preventDefault();
-    if (!projectFromUrl(url) || active.current) return;
+    if (busy || active.current) return;
+    if (!repo) {
+      if (website && source) await onWebsite();
+      return;
+    }
     const controller=new AbortController();
     active.current=controller;
     onStart();
@@ -51,9 +57,9 @@ export default function RepositoryCapture({onStart, onResult, setBusy}) {
   }
   return <section className={styles.workflow}>
     <form onSubmit={start} className={styles.workflow}>
-      <label>Repo GitHub công khai<Input required type="url" placeholder="https://github.com/owner/project" disabled={running} value={url} onChange={e=>setUrl(e.target.value)} /></label>
-      <small>Chọn repo hoặc thư mục ứng dụng có package-lock.json và script dev/start. Phiên thành công sẽ dùng SBOM từ lockfile làm Nguồn 1 và log quan sát tại đường dẫn / làm Nguồn 2.</small>
-      <div className={styles.actions}><Button type="submit" disabled={!projectFromUrl(url) || running}>Thu runtime từ repo</Button>
+      <label>Link repo GitHub hoặc website<Input required type="url" placeholder="https://…" disabled={busy} value={url} onChange={e=>{onChange(e.target.value);setError("");setSteps([]);}} /></label>
+      <small>{repo ? "Chạy repo trong sandbox và dùng SBOM từ lockfile làm Nguồn 1." : website ? (source ? "Thu phiên trình duyệt trên website." : "Chọn SBOM ở Nguồn 1 để thu phiên website.") : "Dán link repo công khai hoặc địa chỉ website đang chạy."}</small>
+      <div className={styles.actions}><Button type="submit" disabled={busy || (!repo && !(website && source))}>Thu runtime</Button>
       {running && <Button variant="secondary" onClick={()=>active.current?.abort()}>Hủy</Button>}</div>
     </form>
     {(steps.length>0 || error) && <div className={styles.actionsPanel} aria-live="polite"><h3>Phiên thu từ repo</h3>

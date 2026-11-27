@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../../components/shared/PageHeader";
 import Spinner from "../../components/shared/Spinner";
 import ErrorBanner from "../../components/shared/ErrorBanner";
-import { Field, Input, Select } from "../../components/shared/Form";
+import { Field, Select } from "../../components/shared/Form";
 import { exportPocCsv, generateRuntimeSbom } from "../../api/reconciliationApi";
 import F12NetworkInspector from "../../components/reconciliation/F12NetworkInspector";
 import toast from "react-hot-toast";
@@ -59,11 +59,11 @@ export default function ReconciliationPage() {
   const source1Content = source?.content || "";
 
   // Nguồn 2: Dữ liệu quan sát Runtime duy nhất từ link web qua nút Run
-  const [targetWebUrl, setTargetWebUrl] = useState("");
+  const [captureUrl, setCaptureUrl] = useState("");
   const [isRunningScan, setIsRunningScan] = useState(false);
   const [runtime, setRuntime] = useState(null);
   const [showF12Inspector, setShowF12Inspector] = useState(false);
-  const [mode,setMode] = useState("repo");
+
   const busy = loading || isRunningScan;
   const runtimeSbomReady = !!runtime;
   const targetWebRequests = runtime?.auditLog?.capturedNetworkRequests || [];
@@ -141,14 +141,14 @@ export default function ReconciliationPage() {
     setCatalog(records => [record, ...records.filter(item => item.id !== record.id)]);
     handleSourceChange(record.id);
     setRuntime(next);
-    setTargetWebUrl(next.targetUrl);
+
     setShowF12Inspector(true);
   }
 
   const handleRunRuntimeScan = async () => {
     let url;
     try {
-      url = new URL(targetWebUrl.trim());
+      url = new URL(captureUrl.trim());
       if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error();
     } catch {
       setError("Nhập URL HTTP hoặc HTTPS của dự án, ví dụ http://localhost:3000.");
@@ -195,7 +195,7 @@ export default function ReconciliationPage() {
       }
       setRuntime(next);
       setShowF12Inspector(true);
-      setTargetWebUrl(next.targetUrl);
+
       resetComparison();
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -242,7 +242,7 @@ export default function ReconciliationPage() {
     const saved = savedComparisons.find((record) => record.id === id && record.staticId === sourceId);
     if (!saved) return;
     resetComparison();
-    setTargetWebUrl(saved.targetUrl);
+
     setRuntime(saved);
     setShowF12Inspector(false);
     setError(null);
@@ -380,6 +380,8 @@ export default function ReconciliationPage() {
           <header className={styles.cardHeader}><h2>Nguồn 1 · SBOM tĩnh</h2><Link to="/provenance">Chuẩn hóa SBOM</Link></header>
           <FilePicker title="SBOM đã chuẩn hóa" detail={source ? source.name : "Tệp CycloneDX JSON"} label={source ? "Đổi SBOM" : "Chọn SBOM"} disabled={busy} onChange={uploadStatic} />
           {source && <p className={styles.meta}>{source.count} thành phần tĩnh</p>}
+          {source && JSON.parse(source.content).metadata?.properties?.some(p=>p.name==="sbom:lockfileStatus" && p.value==="ESBOMPROBLEMS") &&
+            <p className={styles.meta}>npm báo cây phụ thuộc không nhất quán. Danh mục dùng phiên bản trong lockfile, chưa xác minh được các cạnh phụ thuộc.</p>}
           {source?.originalHash && <Button variant="secondary" size="sm" onClick={async () => {
             try { const blob = await getOriginalSbom(source.originalHash); downloadBlob(blob, blob.name || "sbom-original.json"); }
             catch (err) { setError(err.message); }
@@ -392,24 +394,17 @@ export default function ReconciliationPage() {
           </Field>}
         </section>
         <section className={styles.inputCard}>
-          <header className={styles.cardHeader}><h2>Nguồn 2 · Runtime</h2>
-            <div className={styles.switcher} role="group" aria-label="Nguồn dữ liệu runtime">
-              {[["repo","Repo công khai"],["url","Website"],["file","Tải log"],["job","CI có sẵn"]].map(([value,label]) =>
-                <button key={value} type="button" disabled={busy} aria-pressed={mode === value} onClick={() => {
-                  if (mode === value) return;
-                  setMode(value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
-                }}>{label}</button>)}
-            </div>
-          </header>
-          {mode === "repo" ? <RepositoryCapture onStart={()=>{setRuntime(null);setShowF12Inspector(false);resetComparison();setError(null);}} onResult={useRepositoryResult} setBusy={setLoading} />
-          : mode === "file" ? <FilePicker title="Log runtime" detail={runtime?.fileName || "Một tệp JSON cho cả frontend và backend"} label={runtime ? "Đổi log" : "Chọn log"} disabled={busy || !source} onChange={e => importEvidence(e,false)} />
-          : mode === "job" ? <RuntimeWorkflow
-            onStart={() => {setRuntime(null);setShowF12Inspector(false);resetComparison();}}
-            onImport={<FilePicker title="Log từ GitHub Actions" detail={source ? "runtime-log.json" : "Chọn SBOM tĩnh ở Nguồn 1 trước khi nhập log."}
-              label="Chọn log" disabled={busy || !source} onChange={e => importEvidence(e,false)} />} /> : <div className={styles.capture}><Input type="url" aria-label="URL của dự án" placeholder="http://localhost:3000" value={targetWebUrl} disabled={busy} onChange={e => {
-              setTargetWebUrl(e.target.value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
-            }} /><Button disabled={busy || !source || !targetWebUrl.trim()} onClick={handleRunRuntimeScan}>{isRunningScan ? "Đang thu…" : "Thu phiên"}</Button></div>}
-          {!runtime && (mode === "file" || mode === "url") && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
+          <header className={styles.cardHeader}><h2>Nguồn 2 · Runtime</h2></header>
+          <RepositoryCapture url={captureUrl} onChange={setCaptureUrl} busy={busy} source={source}
+            onWebsite={handleRunRuntimeScan} onStart={()=>{setRuntime(null);setShowF12Inspector(false);resetComparison();setError(null);}}
+            onResult={useRepositoryResult} setBusy={setLoading} />
+          <FilePicker title="Hoặc tải log runtime" detail={runtime?.fileName || (source ? "Một tệp JSON cho cả frontend và backend" : "Chọn SBOM ở Nguồn 1 để nhập log.")}
+            label="Chọn log" disabled={busy || !source} onChange={e => importEvidence(e,false)} />
+          <details><summary>Dùng GitHub Actions của dự án</summary>
+            <fieldset disabled={busy} style={{border:0,padding:0,minWidth:0}}>
+              <RuntimeWorkflow url={captureUrl} onStart={()=>{setRuntime(null);setShowF12Inspector(false);resetComparison();}} />
+            </fieldset>
+          </details>
           {runtime && <>
             <p className={styles.meta}>{runtimeResourceCount} tài nguyên F12 · {runtimePackageCount} gói · {Object.keys(runtime.backendEvidence || {}).length} tiến trình backend đã ghép</p>
             <p className={styles.meta}>{runtime.targetUrl} · {runtime.sessionId} · {runtime.auditLog?.observation?.scenario}</p>

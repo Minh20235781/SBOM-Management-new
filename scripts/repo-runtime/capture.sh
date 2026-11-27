@@ -6,9 +6,25 @@ export SBOM_EVIDENCE_DIR=/tmp/evidence
 export SBOM_STATIC_FILE=/tmp/static.json
 export SBOM_BUILD_ID="$(cat /tmp/revision)"
 export SBOM_SCENARIO="GitHub $1 @ $SBOM_BUILD_ID · GET /"
-npm ci --offline --ignore-scripts --no-audit --no-fund --cache /tmp/npm-cache
+workspace=$(node -e "const s=require('./package.json').scripts||{}; const match=!s.dev && !s.start && /^npm run dev --workspace[= ]([@\w./-]+)$/.exec(s['dev:web']||''); console.log(match ? match[1] : '')")
+if [ -n "$workspace" ]; then set -- "--workspace=$workspace"; else set --; fi
+npm ci --offline --ignore-scripts --no-audit --no-fund --cache /tmp/npm-cache "$@"
+npm cache clean --force --cache /tmp/npm-cache
 mkdir -p /tmp/baseline
 cp package.json package-lock.json /tmp/baseline/
+node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+for (const entry of Object.values(require('./package-lock.json').packages)) {
+  if (!entry.link) continue;
+  const directory = fs.realpathSync(entry.resolved);
+  const relative = path.relative(process.cwd(), directory);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) throw Error('Invalid workspace path');
+  const destination = path.join('/tmp/baseline', relative);
+  fs.mkdirSync(destination, {recursive:true});
+  fs.copyFileSync(path.join(directory,'package.json'), path.join(destination,'package.json'));
+}
+NODE
 (
   cd /tmp/baseline
   # npm requires a version on the root even for unpublished applications.
@@ -24,11 +40,17 @@ if (!manifest.version) {
   fs.writeFileSync('package-lock.json', JSON.stringify(lock));
 }
 NODE
-  npm sbom --sbom-format=cyclonedx --package-lock-only > "$SBOM_STATIC_FILE"
+  if ! npm sbom --sbom-format=cyclonedx --package-lock-only > "$SBOM_STATIC_FILE" 2>/tmp/sbom-error; then
+    if ! grep -q ESBOMPROBLEMS /tmp/sbom-error; then cat /tmp/sbom-error >&2; exit 1; fi
+    node /opt/sbom/lock-inventory.cjs > "$SBOM_STATIC_FILE"
+  fi
 )
-script=$(node -e "const s=require('./package.json').scripts||{}; console.log(s.dev?'dev':s.start?'start':'')")
+script=$(node -e "const s=require('./package.json').scripts||{}; console.log(['dev','start','dev:web'].find(name=>s[name])||'')")
 if [ -z "$script" ]; then echo "Cần script dev hoặc start trong package.json." >&2; exit 1; fi
 mkdir -p "$SBOM_EVIDENCE_DIR"
+if [ "$script" = "dev:web" ]; then
+  export SBOM_SCENARIO="$SBOM_SCENARIO · dev:web (chỉ dịch vụ web, chưa chạy API riêng)"
+fi
 NODE_OPTIONS=--require=/opt/sbom/scripts/nodejs-runtime-collector/session-agent.cjs npm run "$script" >/tmp/target.log 2>&1 &
 app=$!
 trap 'kill "$app" 2>/dev/null || true' EXIT

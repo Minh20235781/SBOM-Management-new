@@ -20,7 +20,7 @@ async function docker(args, options = {}) {
       throw Error('Docker Engine trên máy chủ chưa sẵn sàng. Hãy bật Linux containers trên máy chạy runner.');
     if (/no such image|unable to find image/i.test(error.stderr || ''))
       throw Error('Máy chủ chưa build image sbom-repo-runtime:v1. Xem scripts/repo-runtime/README.md.');
-    throw Error([error.code, error.stderr, error.stdout || error.message].filter(Boolean).join('\n').trim().slice(-2200));
+    throw Error(String(error.stderr?.trim() || error.stdout?.trim() || 'Lệnh Docker không hoàn tất.').slice(-2200));
   }
 }
 
@@ -30,8 +30,8 @@ async function capture(project, send, signal) {
   try {
     send({step:'Khởi tạo sandbox'});
     await run(['run','--detach','--rm','--pull=never','--name',name,'--network','bridge','--read-only','--init',
-      '--cap-drop=ALL','--security-opt=no-new-privileges','--memory=2g','--cpus=1','--pids-limit=256',
-      '--tmpfs','/tmp:rw,exec,nosuid,nodev,size=1200m,mode=1777',image]);
+      '--cap-drop=ALL','--security-opt=no-new-privileges','--memory=4g','--cpus=2','--pids-limit=256',
+      '--tmpfs','/tmp:rw,exec,nosuid,nodev,size=2400m,mode=1777',image]);
     send({step:'Lấy mã nguồn và gói từ npm registry'});
     await run(['exec',name,'node','/opt/sbom/prepare.cjs',project.repo,project.branch,project.directory]);
     await run(['network','disconnect','bridge',name]);

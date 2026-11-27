@@ -18,7 +18,16 @@ async function main() {
   if (!entries.length) throw Error('Cần package-lock.json v2/v3.');
   const tarballs = new Map();
   for (const entry of entries) {
+    // npm links workspaces from the checkout. Their resolved values are local paths.
+    if (entry.link) {
+      const target = fs.realpathSync(path.resolve(cwd, entry.resolved));
+      if (!target.startsWith(cwd + path.sep)) throw Error('Workspace nằm ngoài thư mục dự án.');
+      continue;
+    }
     if (!entry.resolved) continue;
+    if (entry.os?.length && !entry.os.includes(process.platform) && entry.os.every(os=>!os.startsWith('!'))) continue;
+    if (entry.cpu?.length && !entry.cpu.includes(process.arch) && entry.cpu.every(cpu=>!cpu.startsWith('!'))) continue;
+    if (!URL.canParse(entry.resolved)) throw Error('Lockfile có dependency cục bộ chưa được hỗ trợ: ' + entry.resolved);
     const url = new URL(entry.resolved);
     if (url.origin !== 'https://registry.npmjs.org' || url.username || url.password || !entry.integrity)
       throw Error('Runner chỉ hỗ trợ gói npm công khai có integrity từ registry.npmjs.org.');

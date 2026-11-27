@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import Button from "../../components/shared/Button";
 import { Input } from "../../components/shared/Form";
-import { dispatch, github, repositoryPath } from "./githubActions";
+import { dispatch, github } from "./githubActions";
+import { projectFromUrl } from "../../../../scripts/repo-runtime/url.mjs";
 import styles from "./ReconciliationPage.module.css";
 
 const labels = { queued: "Đang chờ", in_progress: "Đang chạy", success: "Thành công", failure: "Thất bại",
@@ -31,7 +32,7 @@ function JobLogs({ run, job }) {
   </div>{output && <pre>{output}</pre>}</>;
 }
 
-function RunPanel({ run, onImport }) {
+function RunPanel({ run }) {
   const [view, setView] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -64,18 +65,17 @@ function RunPanel({ run, onImport }) {
       <JobLogs run={run} job={job} />
     </details>)}
     {error && <p role="alert">{error}</p>}
-    {view?.summary.conclusion === "success" && <><p>Tải artifact trong lượt chạy, giải nén rồi chọn runtime-log.json để đối sánh.</p>{onImport}</>}
+    {view?.summary.conclusion === "success" && <p>Tải artifact trong lượt chạy, giải nén rồi chọn runtime-log.json ở ô tải log phía trên.</p>}
   </section>;
 }
 
-export default function RuntimeWorkflow({ onStart, onImport }) {
-  const [url, setUrl] = useState("");
+export default function RuntimeWorkflow({ url, onStart }) {
   const [workflow, setWorkflow] = useState("runtime-sbom.yml");
   const [token, setToken] = useState("");
   const [run, setRun] = useState(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
-  const repo = repositoryPath(url);
+  const repo = projectFromUrl(url)?.repo;
   async function start(event) {
     event.preventDefault();
     if (!repo || starting) return;
@@ -89,8 +89,7 @@ export default function RuntimeWorkflow({ onStart, onImport }) {
   }
   return <section className={styles.workflow}>
     <form onSubmit={start} className={styles.workflow}>
-      <label>Repo GitHub của dự án<Input required type="url" value={url} placeholder="https://github.com/owner/project" onChange={e => setUrl(e.target.value)} /></label>
-      {url && !repo && <small>Nhập đường dẫn repo dạng https://github.com/owner/project.</small>}
+      <small>{repo || "Dán link repo GitHub vào ô phía trên để chạy workflow."}</small>
       <label>Workflow thu runtime trên nhánh mặc định<Input required value={workflow} pattern="[\w.\-]+\.ya?ml" onChange={e => setWorkflow(e.target.value)} /></label>
       <details><summary>Thiết lập workflow cho repo</summary><p>Tải <a href={import.meta.env.BASE_URL + "runtime-sbom.yml"} download>workflow mẫu</a>, chỉnh thư mục ứng dụng, lệnh khởi động, URL và đường dẫn SBOM gốc. Lưu vào .github/workflows/runtime-sbom.yml trên nhánh mặc định. Để chạy ví dụ trong repo công cụ, nhập runtime-demo.yml.</p></details>
       <label>GitHub token của phiên<Input type="password" autoComplete="off" required value={token} onChange={e => setToken(e.target.value)} /></label>
@@ -98,6 +97,6 @@ export default function RuntimeWorkflow({ onStart, onImport }) {
       <Button type="submit" disabled={!repo || !workflow.trim() || !token.trim() || starting}>{starting ? "Đang gửi đến GitHub…" : "Chạy workflow"}</Button>
     </form>
     {error && <p role="alert">{error}</p>}
-    {run && <RunPanel key={run.repo + run.id} run={run} onImport={onImport} />}
+    {run && <RunPanel key={run.repo + run.id} run={run} />}
   </section>;
 }
