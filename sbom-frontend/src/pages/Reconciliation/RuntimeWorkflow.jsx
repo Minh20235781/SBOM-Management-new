@@ -1,100 +1,103 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "../../components/shared/Button";
 import { Input } from "../../components/shared/Form";
-import { generateRuntimeSbom } from "../../api/reconciliationApi";
-import { attachBackend, readBrowserLog } from "./runtimeEvidence";
+import { dispatch, github, repositoryPath } from "./githubActions";
 import styles from "./ReconciliationPage.module.css";
 
-async function runner(action, fields) {
-  const res = await fetch("/__sbom_job", {method:"POST", headers:{"Content-Type":"application/json","X-SBOM-Job":"1"},
-    body:JSON.stringify({action,...fields}),keepalive:action==="stop"});
-  const data = await res.json().catch(()=>({error:"Runner yêu cầu Vite chạy trên localhost."}));
-  if (!res.ok || data.error) throw Error(data.error || "Runner không phản hồi.");
-  return data;
+const labels = { queued: "Đang chờ", in_progress: "Đang chạy", success: "Thành công", failure: "Thất bại",
+  cancelled: "Đã hủy", skipped: "Bỏ qua", timed_out: "Hết thời gian", waiting: "Chờ phê duyệt" };
+const status = item => labels[item.conclusion || item.status] || item.conclusion || item.status;
+
+function JobLogs({ run, job }) {
+  const [output, setOutput] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function load() {
+    setLoading(true);
+    try {
+      const response = await fetch(`https://api.github.com/repos/${run.repo}/actions/jobs/${job.id}/logs`, {
+        headers: { Authorization: "Bearer " + run.token }
+      });
+      if (!response.ok) throw Error("GitHub " + response.status);
+      const lines = (await response.text()).trimEnd().split(/\r?\n/);
+      setOutput(lines.slice(-500).join("\n") || "Job chưa có log.");
+    } catch {
+      setOutput("Chưa đọc được log qua trình duyệt. Mở job trên GitHub để xem toàn bộ log.");
+    } finally { setLoading(false); }
+  }
+  return <><div className={styles.actions}>
+    {job.status === "completed" && <Button size="sm" variant="secondary" disabled={loading} onClick={load}>
+      {loading ? "Đang tải…" : "Xem 500 dòng log cuối"}</Button>}
+    <a href={job.html_url} target="_blank" rel="noreferrer">Mở job trên GitHub ↗</a>
+  </div>{output && <pre>{output}</pre>}</>;
 }
 
-export default function RuntimeWorkflow({ digest, onStart, onResult }) {
-  const [command,setCommand]=useState("npm run dev");
-  const [url,setUrl]=useState("http://localhost:3000");
-  const [job,setJob]=useState(null);
-  const [step,setStep]=useState("idle");
-  const [error,setError]=useState("");
-  const active=useRef(null);
-  const mounted=useRef(false);
-  useEffect(()=>{
-    mounted.current=true;
-    const release=()=>{const id=active.current; active.current=null; if(id) runner("stop",{id}).catch(()=>{});};
-    window.addEventListener("pagehide",release);
-    return ()=>{mounted.current=false;window.removeEventListener("pagehide",release);release();};
-  },[]);
-  const id=job?.id;
-  useEffect(()=>{
-    if (!id || job.state!=="running") return;
-    let closed=false;
-    const timer=setInterval(async()=>{
-      try {const next=await runner("status",{id});if(!closed && active.current===id)setJob(next);}
-      catch(e){if(!closed)setError(e.message);}
-    },1000);
-    return ()=>{closed=true;clearInterval(timer);};
-  },[id,job?.state]);
-
-  async function start() {
-    setError(""); setStep("starting"); setJob(null); onStart();
-    try {
-      const target=new URL(url);
-      if(!["http:","https:"].includes(target.protocol)||!["localhost","127.0.0.1","[::1]"].includes(target.hostname)||target.username||target.password)
-        throw Error("Chọn URL localhost của ứng dụng do runner khởi động.");
-      const next=await runner("start",{command:command.trim(),digest});
-      if(!mounted.current){await runner("stop",{id:next.id});return;}
-      active.current=next.id;setJob(next);setStep("ready");
-    } catch(e){if(mounted.current){setError(e.message);setStep("idle");}}
-  }
-  async function stop() {
-    try {const next=await runner("stop",{id});active.current=null;setJob(next);setStep("stopped");}
-    catch(e){setError(e.message);}
-  }
-  async function collect() {
-    setError("");setStep("browser");
-    try {
-      const result=await generateRuntimeSbom({targetUrl:url,observedOnly:true});
-      if(!result?.success) throw Error(result?.message || "Thu CDP thất bại.");
-      let runtime=readBrowserLog(result);
-      if(active.current!==id)return;
-      setStep("merge");
-      const snapshot=await runner("evidence",{id});
-      const ids=new Set(runtime.auditLog.capturedNetworkRequests.map(r=>r.backendRequestId).filter(Boolean));
-      const matches=snapshot.inventories.filter(i=>i.requests.some(r=>ids.has(r.requestId)));
-      if(!matches.length)throw Error("Chưa có request chung. Kiểm tra URL và bảo đảm trang gửi request đến backend đang chạy.");
-      for(const inventory of matches) runtime=attachBackend(runtime,inventory,digest);
-      const ended=await runner("stop",{id});
-      if(active.current!==id)return;
-      active.current=null;setJob(ended);setStep("done");onResult(runtime);
-    } catch(e){if(active.current===id){setError(e.message);setStep("ready");}}
-  }
-  const running=job?.state==="running";
-  const collecting=step==="browser"||step==="merge";
-  const states=[running?"Đang chạy":step==="done"?"Hoàn tất":job?.state==="failed"?"Thất bại":step==="starting"?"Đang mở":job?"Đã dừng":"Chờ",
-    collecting?(step==="browser"?"Đang thu":"Hoàn tất"):step==="done"?"Hoàn tất":"Chờ",
-    step==="merge"?"Đang ghép":step==="done"?"Hoàn tất":"Chờ"];
-  return <section className={styles.workflow}>
-    <details><summary>Chạy thử trên GitHub Actions</summary>
-      <p>Mở <a href="https://github.com/Minh20235781/SBOM-Management-new/actions/workflows/runtime-demo.yml" target="_blank" rel="noreferrer">Runtime SBOM demo</a>, chọn Run workflow trên nhánh main. GitHub sẽ chạy ứng dụng mẫu và thu cả frontend lẫn backend.</p>
-      <p>Khi job hoàn tất, tải và giải nén sbom-runtime-demo. Dùng sbom-static.json để chuẩn hóa cho Nguồn 1 và nhập runtime-log.json ở Nguồn 2.</p>
-    </details>
-    <label>Lệnh backend<Input value={command} disabled={running||step==="starting"} onChange={e=>setCommand(e.target.value)} /></label>
-    <details><summary>Cấu hình runner trên máy phát triển</summary>
-      <p>Nếu chạy backend trên máy này, đặt hai biến trong cùng cửa sổ PowerShell trước khi khởi động Vite. Thay các đường dẫn ví dụ bằng vị trí trên máy bạn.</p>
-      <pre>{String.raw`$env:SBOM_WORKFLOW_DIR = 'C:\KickZone\apps\api'
-$env:SBOM_STATIC_FILE = 'C:\KickZone\sbom-original.json'`}</pre>
-      <p>Biến đầu chỉ thư mục chứa package.json có script dev hoặc start. Biến thứ hai chỉ tệp SBOM gốc dùng để tính SHA-256.</p></details>
-    <label>URL ứng dụng<Input type="url" value={url} disabled={collecting} onChange={e=>setUrl(e.target.value)} /></label>
-    <div className={styles.actions}>
-      <Button disabled={!digest||running||step==="starting"} onClick={start}>Chạy workflow</Button>
-      {running && <><Button variant="secondary" disabled={collecting} onClick={collect}>Thu phiên và ghép log</Button>
-      <Button variant="ghost" onClick={stop}>Dừng job</Button></>}
-    </div>
-    <ol className={styles.jobs}>{["Khởi động backend","Thu frontend qua CDP","Ghép bằng chứng"].map((name,i)=><li key={name}><span>{name}</span><strong>{states[i]}</strong></li>)}</ol>
-    {job && <pre aria-label="Đầu ra terminal">{job.output || "Đang chờ stdout / stderr…"}</pre>}
+function RunPanel({ run, onImport }) {
+  const [view, setView] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer;
+    async function refresh() {
+      const read = endpoint => github(run.repo, "/actions/runs/" + run.id + endpoint, run.token, { signal: controller.signal });
+      try {
+        const [summary, data] = await Promise.all([read(""), read("/jobs?per_page=100")]);
+        if (controller.signal.aborted) return;
+        setView({ summary, jobs: data.jobs });
+        setError("");
+        if (summary.status === "completed") return;
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setError(err.message);
+      }
+      timer = setTimeout(refresh, 6000);
+    }
+    refresh();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [run]);
+  return <section className={styles.actionsPanel}>
+    <header><div><small>GitHub Actions · {run.repo}</small><h3>{view?.summary.name || "Workflow runtime"} #{view?.summary.run_number || run.id}</h3></div>
+      <a href={run.url} target="_blank" rel="noreferrer">Mở lượt chạy ↗</a></header>
+    <p role="status">{view ? status(view.summary) : "Đang lấy trạng thái từ GitHub…"}</p>
+    {view?.jobs.map(job => <details key={job.id} open>
+      <summary>{job.name} · {status(job)}</summary>
+      <ol>{job.steps?.map(step => <li key={step.number}><span>{step.name}</span><strong>{status(step)}</strong></li>)}</ol>
+      <JobLogs run={run} job={job} />
+    </details>)}
     {error && <p role="alert">{error}</p>}
+    {view?.summary.conclusion === "success" && <><p>Tải artifact trong lượt chạy, giải nén rồi chọn runtime-log.json để đối sánh.</p>{onImport}</>}
+  </section>;
+}
+
+export default function RuntimeWorkflow({ onStart, onImport }) {
+  const [url, setUrl] = useState("");
+  const [workflow, setWorkflow] = useState("runtime-sbom.yml");
+  const [token, setToken] = useState("");
+  const [run, setRun] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const repo = repositoryPath(url);
+  async function start(event) {
+    event.preventDefault();
+    if (!repo || starting) return;
+    setStarting(true); setError("");
+    try {
+      const next = await dispatch(repo, workflow.trim(), token.trim());
+      onStart();
+      setRun(next);
+    } catch (err) { setError(err.message); }
+    finally { setStarting(false); }
+  }
+  return <section className={styles.workflow}>
+    <form onSubmit={start} className={styles.workflow}>
+      <label>Repo GitHub của dự án<Input required type="url" value={url} placeholder="https://github.com/owner/project" onChange={e => setUrl(e.target.value)} /></label>
+      {url && !repo && <small>Nhập đường dẫn repo dạng https://github.com/owner/project.</small>}
+      <label>Workflow thu runtime trên nhánh mặc định<Input required value={workflow} pattern="[\w.\-]+\.ya?ml" onChange={e => setWorkflow(e.target.value)} /></label>
+      <details><summary>Thiết lập workflow cho repo</summary><p>Tải <a href={import.meta.env.BASE_URL + "runtime-sbom.yml"} download>workflow mẫu</a>, chỉnh thư mục ứng dụng, lệnh khởi động, URL và đường dẫn SBOM gốc. Lưu vào .github/workflows/runtime-sbom.yml trên nhánh mặc định. Để chạy ví dụ trong repo công cụ, nhập runtime-demo.yml.</p></details>
+      <label>GitHub token của phiên<Input type="password" autoComplete="off" required value={token} onChange={e => setToken(e.target.value)} /></label>
+      <small>Dùng fine-grained token có quyền Actions: Read and write trên repo đã chọn. Token được gửi trực tiếp tới GitHub.</small>
+      <Button type="submit" disabled={!repo || !workflow.trim() || !token.trim() || starting}>{starting ? "Đang gửi đến GitHub…" : "Chạy workflow"}</Button>
+    </form>
+    {error && <p role="alert">{error}</p>}
+    {run && <RunPanel key={run.repo + run.id} run={run} onImport={onImport} />}
   </section>;
 }

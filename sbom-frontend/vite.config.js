@@ -1,4 +1,3 @@
-import { workflowRunner } from './workflowRunner.js'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -17,7 +16,7 @@ import react from '@vitejs/plugin-react'
 // For production builds, the same proxies are expected to be
 // configured at the reverse-proxy level (nginx, Caddy, etc).
 export default defineConfig({
- plugins: [react(), workflowRunner()],
+ plugins: [react()],
  server: {
  proxy: {
  '/api': {

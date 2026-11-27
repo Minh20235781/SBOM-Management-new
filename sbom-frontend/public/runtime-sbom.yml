@@ -1,0 +1,54 @@
+name: Runtime SBOM
+on: workflow_dispatch
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Paths relative to the root of YOUR repository
+      APP_DIR: .
+      STATIC_SBOM: sbom-static.json
+      PORT: 3000
+      TARGET_URL: http://127.0.0.1:3000/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Minh20235781/SBOM-Management-new
+          ref: 522c1c34a160c7ac6a0ea811f9facf8598c3e286
+          path: .sbom-tools
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install project and runtime collector
+        run: |
+          npm ci --prefix "$APP_DIR"
+          npm ci --prefix .sbom-tools/scripts/runtime-collector
+      - name: Start application and capture runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$GITHUB_WORKSPACE/.sbom-tools/scripts"
+          export SBOM_STATIC_FILE="$GITHUB_WORKSPACE/$STATIC_SBOM"
+          export SBOM_BUILD_ID="$GITHUB_SHA"
+          export SBOM_EVIDENCE_DIR="$RUNNER_TEMP/backend-evidence"
+          export CHROME_BIN="$(command -v google-chrome)"
+          mkdir -p "$SBOM_EVIDENCE_DIR"
+          # Adapt the command and readiness URL to the project.
+          (cd "$APP_DIR" && NODE_OPTIONS="--require=$tools/nodejs-runtime-collector/session-agent.cjs" npm run dev) &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          curl --fail --retry 45 --retry-delay 1 --retry-connrefused --output /dev/null "$TARGET_URL"
+          node "$tools/runtime-collector/cdp-scanner.js" "$TARGET_URL" "$RUNNER_TEMP/browser.json"
+          node "$tools/runtime-collector/export-session.mjs" "$RUNNER_TEMP/browser.json" "$SBOM_EVIDENCE_DIR" "$SBOM_STATIC_FILE" "$RUNNER_TEMP/runtime-log.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-sbom
+          path: ${{ runner.temp }}/runtime-log.json
+          if-no-files-found: error
