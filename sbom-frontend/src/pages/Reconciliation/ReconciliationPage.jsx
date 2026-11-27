@@ -12,6 +12,7 @@ import DependencyComparison from "./DependencyComparison";
 import { compareDependencyGraphs, readDependencyGraph } from "./compareDependencyGraphs";
 import { readBrowserLog, attachBackend } from "./runtimeEvidence";
 import Button from "../../components/shared/Button";
+import RuntimeWorkflow from "./RuntimeWorkflow";
 import RuntimeTerminal from "./RuntimeTerminal";
 import styles from "./ReconciliationPage.module.css";
 
@@ -378,7 +379,7 @@ export default function ReconciliationPage() {
         <section className={styles.inputCard}>
           <header className={styles.cardHeader}><h2>Nguồn 2 · Runtime</h2>
             <div className={styles.switcher} role="group" aria-label="Nguồn dữ liệu runtime">
-              {[["file","Tải log"],["url","Thu từ URL"]].map(([value,label]) =>
+              {[["file","Tải log"],["url","Thu từ URL"],["job","Workflow"]].map(([value,label]) =>
                 <button key={value} type="button" disabled={busy} aria-pressed={mode === value} onClick={() => {
                   if (mode === value) return;
                   setMode(value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
@@ -386,10 +387,10 @@ export default function ReconciliationPage() {
             </div>
           </header>
           {mode === "file" ? <FilePicker title="Log runtime" detail={runtime?.fileName || "Một tệp JSON cho cả frontend và backend"} label={runtime ? "Đổi log" : "Chọn log"} disabled={busy || !source} onChange={e => importEvidence(e,false)} />
-          : <div className={styles.capture}><Input type="url" aria-label="URL của dự án" placeholder="http://localhost:3000" value={targetWebUrl} disabled={busy} onChange={e => {
+          : mode === "job" ? <RuntimeWorkflow onStart={() => {setRuntime(null);setShowF12Inspector(false);resetComparison();}} key={sourceId} digest={source && (JSON.parse(source.content).metadata?.properties?.find(p => p.name === "devops.provenance.file_sha256")?.value || source.id)} onResult={next => {setRuntime(next);setTargetWebUrl(next.targetUrl);setShowF12Inspector(true);resetComparison();setError(null);}} /> : <div className={styles.capture}><Input type="url" aria-label="URL của dự án" placeholder="http://localhost:3000" value={targetWebUrl} disabled={busy} onChange={e => {
               setTargetWebUrl(e.target.value); setRuntime(null); setShowF12Inspector(false); resetComparison(); setError(null);
             }} /><Button disabled={busy || !source || !targetWebUrl.trim()} onClick={handleRunRuntimeScan}>{isRunningScan ? "Đang thu…" : "Thu phiên"}</Button></div>}
-          {!runtime && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
+          {!runtime && mode !== "job" && <p className={styles.meta}>{!source ? "Chọn SBOM tĩnh để bắt đầu." : mode === "url" ? "URL ghi nhận tài nguyên phía trình duyệt." : "Có thể dùng log chỉ chứa quan sát trình duyệt."}</p>}
           {runtime && <>
             <p className={styles.meta}>{runtimeResourceCount} tài nguyên F12 · {runtimePackageCount} gói · {Object.keys(runtime.backendEvidence || {}).length} tiến trình backend đã ghép</p>
             <p className={styles.meta}>{runtime.targetUrl} · {runtime.sessionId} · {runtime.auditLog?.observation?.scenario}</p>

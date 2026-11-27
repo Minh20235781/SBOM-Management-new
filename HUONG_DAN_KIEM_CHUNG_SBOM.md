@@ -65,3 +65,15 @@ node scripts/runtime-collector/cdp-scanner.js http://localhost:3000 browser.json
 Trong khung **Terminal backend**, Chrome và Edge hỗ trợ chọn file log đang ghi và cập nhật các lần nạp module cùng HTTP request. Bấm **Ghép bản ghi này vào phiên** để kiểm tra SHA-256 và request trước khi đối sánh. Có thể nhập trực tiếp log đã xuất thay cho thu URL mới.
 
 Nếu log runtime xuất ra đã có backendEvidence của phiên, Nguồn 2 chỉ cần một file. Chọn **Thu từ URL** để thu một phiên trình duyệt mới.
+
+## Chạy workflow từ giao diện trên localhost
+
+Trong terminal dùng để chạy Vite, chọn thư mục backend đã cài dependencies và đường dẫn SBOM gốc của bản build. Sau đó khởi động Vite từ thư mục sbom-frontend.
+
+```powershell
+$env:SBOM_WORKFLOW_DIR = 'C:\du-an\apps\api'
+$env:SBOM_STATIC_FILE = 'C:\du-an\sbom-goc.json'
+npm run dev
+```
+
+Tải SBOM chuẩn hóa lên Nguồn 1. Tại Nguồn 2 chọn **Workflow**, nhập URL localhost của frontend và lệnh như **npm run dev** hoặc **pnpm start**. Bấm **Chạy workflow** và xem stdout/stderr. Khi ứng dụng sẵn sàng, bấm **Thu phiên và ghép log**. Runner tìm các tiến trình đã xử lý request của phiên CDP, kiểm tra digest, ghép bằng chứng và dừng backend đã khởi động. Bấm **Đối sánh SBOM** để xem kết quả. Nếu frontend và API chạy riêng, mở frontend và cấu hình nó gọi API của job. Chế độ chạy lệnh sử dụng Vite dev server trên máy phát triển.
