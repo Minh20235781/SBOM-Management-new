@@ -14,3 +14,13 @@
   .page { padding-inline: 0; }
   .inputCard { padding: var(--space-2); }
 }
+.inspectors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 31rem), 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+.inspectors > * { min-width: 0; }
+.terminal { background: #111827; color: #e5e7eb; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+.terminal h3 { margin: 0 0 .75rem; }
+.terminal pre { max-height: 22rem; overflow: auto; font-size: .8rem; }

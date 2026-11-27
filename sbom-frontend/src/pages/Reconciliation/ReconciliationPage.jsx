@@ -7,10 +7,11 @@ import { Field, Input, Select } from "../../components/shared/Form";
 import { exportPocCsv, generateRuntimeSbom } from "../../api/reconciliationApi";
 import F12NetworkInspector from "../../components/reconciliation/F12NetworkInspector";
 import toast from "react-hot-toast";
-import { getOriginalSbom, listNormalizedSboms, listSbomComparisons, saveSbomComparison } from "../../utils/sbomSnapshots";
+import { getOriginalSbom, saveNormalizedSbom, listNormalizedSboms, listSbomComparisons, saveSbomComparison } from "../../utils/sbomSnapshots";
 import DependencyComparison from "./DependencyComparison";
 import { compareDependencyGraphs, readDependencyGraph } from "./compareDependencyGraphs";
 import { readBrowserLog, attachBackend } from "./runtimeEvidence";
+import RuntimeTerminal from "./RuntimeTerminal";
 import styles from "./ReconciliationPage.module.css";
 
 const sourceSelectStyle = {
@@ -96,6 +97,26 @@ export default function ReconciliationPage() {
     resetComparison();
   };
 
+  async function uploadStatic(event) {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    setLoading(true);
+    handleSourceChange("");
+    try {
+      const content = await file.text();
+      const document = JSON.parse(content);
+      if (document.bomFormat !== "CycloneDX" || !Array.isArray(document.components)) {
+        throw new Error("Chọn tệp SBOM CycloneDX JSON có danh sách components.");
+      }
+      readDependencyGraph(document);
+      const record = await saveNormalizedSbom(content, file.name);
+      setCatalog(records => [record, ...records.filter(r => r.id !== record.id)]);
+      handleSourceChange(record.id);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
   const handleRunRuntimeScan = async () => {
     let url;
     try {
@@ -117,6 +138,7 @@ export default function ReconciliationPage() {
         throw new Error(res?.message || "Bộ thu thập chưa trả về phiên SBOM runtime hợp lệ.");
       }
       setRuntime(readBrowserLog(res));
+      setShowF12Inspector(true);
       toast.success("Đã thu thập SBOM runtime từ URL dự án");
     } catch (err) {
       setError(err.message || "Lỗi khi thu thập SBOM runtime");
@@ -144,6 +166,7 @@ export default function ReconciliationPage() {
         }
       }
       setRuntime(next);
+      setShowF12Inspector(true);
       setTargetWebUrl(next.targetUrl);
       resetComparison();
     } catch (err) { setError(err.message); }
@@ -319,7 +342,7 @@ export default function ReconciliationPage() {
       {/* Header */}
       <PageHeader
         title="Đối Sánh SBOM Tĩnh Với Dữ Liệu Runtime"
-        description="Chọn SBOM đã chuẩn hóa và thu thập SBOM runtime từ URL của cùng dự án đang chạy."
+        description="Tải SBOM tĩnh và đối sánh với log runtime đã thu hoặc thu phiên mới từ URL."
       />
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -366,17 +389,10 @@ export default function ReconciliationPage() {
             </div>
 
             <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Chọn một SBOM từ <Link to="/provenance">trang SBOM Provenance</Link>.
-            </div>
-
-            <div style={{ marginBottom: "var(--space-3)" }}>
-              <Select aria-label="SBOM đã chuẩn hóa" value={source ? sourceId : ""} title={source?.name}
-                onChange={(event) => handleSourceChange(event.target.value)} disabled={loading || isRunningScan} style={sourceSelectStyle}>
-                <option value="">{catalog.length ? "Chọn SBOM đã chuẩn hóa" : "Chưa có SBOM đã lưu trên trình duyệt này"}</option>
-                {catalog.map(({ id, name, version, count, savedAt }) => (
-                  <option key={id} value={id}>{name}{version ? ` · ${version}` : ""} · {count} thành phần · {new Date(savedAt).toLocaleString("vi-VN")} · {id.slice(0, 8)}</option>
-                ))}
-              </Select>
+              <label>Tải SBOM tĩnh đã chuẩn hóa
+                <input type="file" accept=".json,application/json" disabled={loading || isRunningScan} onChange={uploadStatic} />
+              </label>
+              <Link to="/provenance">Chuẩn hóa SBOM</Link>
             </div>
             {source?.originalHash && <button onClick={async () => {
               try {
@@ -447,7 +463,7 @@ export default function ReconciliationPage() {
             </div>
 
             <div style={{ fontSize: "var(--font-sm)", color: "var(--text-secondary)", marginBottom: 14 }}>
-              Nhập URL bản deploy hoặc bản chạy local tương ứng với SBOM tĩnh.
+              Nhập URL để thu phía trình duyệt. Để quan sát backend, chạy ứng dụng với agent hoặc tải log đã ghép từ phiên trước.
             </div>
 
             {/* Ô NHẬP LINK WEB VÀ NÚT RUN CẠNH NHAU */}
@@ -503,7 +519,7 @@ export default function ReconciliationPage() {
               </button>
             </div>
 
-            <label>Nhập log trình duyệt CDP <input type="file" accept=".json" disabled={!source || loading || isRunningScan} onChange={e => importEvidence(e, false)} /></label>
+            <label>Hoặc tải log runtime đã xuất (.json) <input type="file" accept=".json" disabled={!source || loading || isRunningScan} onChange={e => importEvidence(e, false)} /></label>
             <label>Ghép log backend cùng phiên <input type="file" multiple accept=".json" disabled={!runtime || loading || isRunningScan} onChange={e => importEvidence(e, true)} /></label>
             {runtime && <p>Tiến trình backend đã đối chiếu request: {Object.keys(runtime.backendEvidence || {}).length}</p>}
             {runtime?.auditLog?.observation && <p>
@@ -601,11 +617,12 @@ export default function ReconciliationPage() {
 
         {!runtimeSbomReady && (
           <div style={{ fontSize: "var(--font-xs)", color: "var(--text-muted)", marginTop: 8 }}>
-            Cần bấm nút Run ở Nguồn 2 để có SBOM runtime trước khi thực hiện đối sánh
+            Nhập URL và bấm Run hoặc tải file log runtime để đối sánh.
           </div>
         )}
       </div>
 
+      <div className={styles.inspectors}>
       {showF12Inspector && runtime && (
         <div style={{ marginBottom: 24 }}>
           <F12NetworkInspector
@@ -616,6 +633,16 @@ export default function ReconciliationPage() {
           />
         </div>
       )}
+
+      {source && <RuntimeTerminal key={sourceId} inventories={runtime?.backendEvidence} onAttach={runtime && !loading && !isRunningScan ? data => {
+        try {
+          const hash = JSON.parse(source.content).metadata?.properties?.find(p => p.name === "devops.provenance.file_sha256")?.value || source.id;
+          setRuntime(attachBackend(runtime, data, hash));
+          resetComparison();
+          setError(null);
+        } catch (err) { setError(err.message); }
+      } : null} />}
+      </div>
 
       {matchReport && staticGraph && runtimeGraph && (
         <DependencyComparison key={`${sourceId}/${runtime.sessionId}`} staticGraph={staticGraph} runtimeGraph={runtimeGraph}

@@ -20,13 +20,13 @@ Xây dựng cho nhà phát triển một luồng trả lời hai câu hỏi trư
 
 ## Kiểm tra nguồn gốc
 
-Trang Provenance lưu byte của SBOM gốc trong trình duyệt cùng SHA-256. Khi chọn bản đã lưu trên trang Reconciliation, nhấn **Tải lại SBOM gốc** để nhận đúng tệp đầu vào. Với các bản đã lưu từ phiên bản cũ, nạp lại tệp gốc để bổ sung bản sao.
+Trang Provenance lưu byte của SBOM gốc trong trình duyệt cùng SHA-256. Khi tải bản chuẩn hóa tương ứng lên trang Reconciliation, nhấn **Tải lại SBOM gốc** để nhận đúng tệp đầu vào. Với các bản đã lưu từ phiên bản cũ, nạp lại tệp gốc để bổ sung bản sao.
 
 Trên trang **Provenance**, nạp SBOM gốc và lưu bản làm giàu. Có thể nhập SHA-256 tham chiếu độc lập để kiểm tra SBOM. Mở chi tiết gói có checksum, chọn đúng tarball hoặc JAR đang bàn giao. Giao diện băm tệp tại máy và xuất biên bản JSON chứa URL tra cứu, thuật toán, giá trị công bố, giá trị tính lại, SHA-256 và thời điểm. Với npm, chọn tarball nguyên bản trước khi giải nén. Thử cả tệp đúng và bản sao đổi một byte. Khi một gói riêng không xuất hiện ở kho công cộng, đối chiếu thêm đường dẫn manifest/workspace hoặc kho riêng của nhà phát triển.
 
 ## Thu một phiên frontend và backend
 
-1. Chọn cùng bản build để lập SBOM và chạy ứng dụng. Dùng terminal mới ở thư mục dự án đích hoặc workspace backend nơi lệnh dev vẫn thường chạy. Truyền **SBOM gốc** cho agent và chọn **bản chuẩn hóa từ chính SBOM ấy** trong công cụ. Agent ghi SHA-256 của tệp được người vận hành chọn. Để kiểm chứng bản deploy, lưu thêm commit/build ID từ hệ thống phát hành.
+1. Chọn cùng bản build để lập SBOM và chạy ứng dụng. Dùng terminal mới ở thư mục dự án đích hoặc workspace backend nơi lệnh dev vẫn thường chạy. Truyền **SBOM gốc** cho agent và tải lên **bản chuẩn hóa từ chính SBOM ấy** trong công cụ. Agent ghi SHA-256 của tệp được người vận hành chọn. Để kiểm chứng bản deploy, lưu thêm commit/build ID từ hệ thống phát hành.
 2. Chạy lệnh dưới đây trong PowerShell. Thay hai đường dẫn bằng vị trí thực. Với pnpm thay giá trị Manager thành pnpm. Dùng Script start khi cần đánh giá bản build sản xuất. Terminal in thư mục chứa các file backend. Với ứng dụng có frontend và API độc lập, bật agent trên tiến trình API. Với Next.js full stack, bật trên lệnh chạy Next.
 
 ```powershell
@@ -35,7 +35,7 @@ Trên trang **Provenance**, nạp SBOM gốc và lưu bản làm giàu. Có th�
 
 Trên Linux/macOS, đặt SBOM_STATIC_FILE và SBOM_EVIDENCE_DIR thành đường dẫn tuyệt đối. Thêm `--require "/đường/dẫn/session-agent.cjs"` vào NODE_OPTIONS của lệnh npm hoặc pnpm. Node truyền preload xuống tiến trình con thừa kế môi trường. CommonJS dùng sự kiện nạp thành công qua require. Native ESM dùng load hook khi Node cung cấp registerHooks, ví dụ Node 24. TypeScript được quan sát qua module đầu ra hoặc loader mà ứng dụng sử dụng. [Node.js module hooks](https://nodejs.org/api/module.html#moduleregisterhooksoptions)
 
-3. Mở trang **Reconciliation**, chọn SBOM, nhập URL và nhấn **Run** để ghi lượt tải trang. Với một thao tác tương tác như đăng nhập, chạy lệnh sau từ repo công cụ ở terminal thứ hai. Trong cửa sổ Chrome vừa mở, thực hiện thao tác trong 60 giây rồi nhập tệp qua **Nhập log trình duyệt CDP**. Đặt `SBOM_SCENARIO` thành tên thao tác, `SBOM_BUILD_ID` thành mã build frontend đang đo nếu biết. Wrapper backend nhận `-BuildId` hoặc lấy commit Git của thư mục chạy. Báo cáo JSON lưu cả thông tin phiên và các request dùng để ghép.
+3. Mở trang **Reconciliation**, tải SBOM chuẩn hóa, nhập URL và nhấn **Run** để ghi lượt tải trang. Với một thao tác tương tác như đăng nhập, chạy lệnh sau từ repo công cụ ở terminal thứ hai. Trong cửa sổ Chrome vừa mở, thực hiện thao tác trong 60 giây rồi nhập tệp qua **Hoặc tải log runtime đã xuất**. Đặt `SBOM_SCENARIO` thành tên thao tác, `SBOM_BUILD_ID` thành mã build frontend đang đo nếu biết. Wrapper backend nhận `-BuildId` hoặc lấy commit Git của thư mục chạy. Báo cáo JSON lưu cả thông tin phiên và các request dùng để ghép.
 
 ```powershell
 $env:SBOM_SCENARIO = 'Đăng nhập tài khoản thử'
@@ -61,3 +61,5 @@ node scripts/runtime-collector/cdp-scanner.js http://localhost:3000 browser.json
 | Phát lại log KickZone | 871 bản ghi tĩnh và 5 tên frontend. Báo cáo trả 0 MATCHED, 0 RUNTIME_ONLY, 863 STATIC_ONLY và 11 dòng UNRESOLVED. Một tên runtime có thể ứng với nhiều bản ghi tĩnh. Cần phiên backend KickZone mới để đánh giá toàn ứng dụng. |
 | Đối chiếu schema CycloneDX 1.6 của KickZone | Bản gốc có 98 lỗi schema, bản làm giàu cũ có 2.703 lỗi. Đầu ra chạy lại từ bản gốc trong phép thử ngoại tuyến có 0 lỗi theo cùng bộ kiểm tra. Phép thử này thay bộ tra registry bằng kết quả ngoại tuyến để đo riêng cấu trúc và bảo toàn dữ liệu. |
 | Ứng dụng Node độc lập | Chrome headless nhận response từ server thật và ghép được module CommonJS, ESM. Các ca sai SHA-256 hoặc thiếu request chung bị từ chối. Chạy riêng wrapper với npm và pnpm đều tạo được log từ server. |
+
+Trong khung **Terminal backend**, Chrome và Edge hỗ trợ chọn file log đang ghi và cập nhật các lần nạp module cùng HTTP request. Bấm **Ghép bản ghi này vào phiên** để kiểm tra SHA-256 và request trước khi đối sánh. Có thể nhập trực tiếp log đã xuất thay cho thu URL mới.

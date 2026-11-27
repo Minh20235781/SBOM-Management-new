@@ -178,7 +178,7 @@ Chạy start-capture.ps1 trong dự án đích để bật agent cho npm hoặc 
 
 ### Pha 2: Đối Soát Đa Nguồn Giữa SBOM Chuẩn Hóa và Runtime
 1. Cài thư viện bộ thu thập bằng `npm ci --prefix scripts/runtime-collector` từ thư mục gốc dự án. Dùng Chrome đã cài hoặc đặt `CHROME_BIN` trỏ tới Chromium trước khi khởi động backend.
-2. Mở **Runtime Reconcile** (`/reconciliation`) và chọn tên SBOM đã lưu từ Provenance.
+2. Mở **Runtime Reconcile** (`/reconciliation`) và tải tệp SBOM chuẩn hóa từ Provenance lên Nguồn 1.
 3. Nhập URL bản deploy hoặc bản chạy local tương ứng với SBOM đã chọn, rồi bấm **Run**. Bộ thu thập dùng Chromium CDP để ghi nhận tài nguyên của phiên tải trang.
 4. Bấm **Thực Hiện Đối Sánh SBOM**. Mở hai cây phụ thuộc hoặc bấm tên gói trong bảng để đọc chi tiết. Khi phiên runtime chỉ có danh sách gói, các cạnh thiếu bằng chứng được đánh dấu **Chưa đủ dữ liệu đối sánh**.
 5. Tải báo cáo JSON hoặc CSV, hoặc chọn **Mở phiên đối sánh đã lưu** để xem lại cặp dữ liệu trên cùng trình duyệt.
